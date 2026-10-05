@@ -237,7 +237,12 @@ func encoders() []encoderInfo {
 }
 
 func (s *Server) info(http.ResponseWriter, *http.Request) (any, error) {
+	set, err := s.Store.Settings()
+	if err != nil {
+		return nil, err
+	}
 	return map[string]any{
+		"welcomed":       set.Welcomed,
 		"peaksPerSecond": mediacache.PeaksPerSecond,
 		"canOpenFiles":   s.OpenFile != nil,
 		"encoders":       encoders(),

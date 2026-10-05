@@ -450,7 +450,7 @@ func TestWelcomeAndNotices(t *testing.T) {
 	var info map[string]any
 	_, body := e.do(t, "GET", "/api/info", nil)
 	_ = json.Unmarshal(body, &info)
-	if info["version"] != "v9.9.9" || info["hasNotices"] != true {
+	if info["version"] != "v9.9.9" || info["hasNotices"] != true || info["welcomed"] != false {
 		t.Errorf("info %s", body)
 	}
 	if _, body := e.do(t, "GET", "/api/notices", nil); string(body) != "ffmpeg is GPL" {

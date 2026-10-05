@@ -49,6 +49,10 @@ type Server struct {
 	Live *live.Manager
 	// NewToken makes a fresh API token.
 	NewToken func() string
+	// Version is the app's version, shown in Settings.
+	Version string
+	// Notices is the path of the third-party license notices; may be "".
+	Notices string
 
 	hub *hub
 }
@@ -113,6 +117,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/jobs/{id}/video", s.video)
 	mux.HandleFunc("GET /api/jobs/{id}/peaks", s.peaks)
 	mux.HandleFunc("GET /api/jobs/{id}/thumb", s.thumb)
+	mux.HandleFunc("GET /api/notices", s.notices)
 	s.liveRoutes(api)
 	mux.HandleFunc("GET /", s.ui)
 	return s.auth(mux)
@@ -236,7 +241,25 @@ func (s *Server) info(http.ResponseWriter, *http.Request) (any, error) {
 		"peaksPerSecond": mediacache.PeaksPerSecond,
 		"canOpenFiles":   s.OpenFile != nil,
 		"encoders":       encoders(),
+		"version":        s.Version,
+		"hasNotices":     s.Notices != "",
+		"v1Found":        v1Found(),
 	}, nil
+}
+
+// v1Found reports whether v1's settings are where v1 kept them.
+func v1Found() bool {
+	_, err := os.Stat(filepath.Join(v1import.Dir(), "config.json"))
+	return err == nil
+}
+
+func (s *Server) notices(w http.ResponseWriter, r *http.Request) {
+	if s.Notices == "" {
+		http.NotFound(w, r)
+		return
+	}
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	http.ServeFile(w, r, s.Notices)
 }
 
 // jobEdit is what a client may change on a job. Nil fields are unchanged.

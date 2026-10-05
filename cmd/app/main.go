@@ -32,7 +32,16 @@ import (
 
 const appName = "Subsplash Generator"
 
+// version is set at build time with -ldflags "-X main.version=v1.2.3".
+var version = "dev"
+
 func main() {
+	if len(os.Args) > 1 && os.Args[1] == "--self-test" {
+		if !selfTest(os.Stdout) {
+			os.Exit(1)
+		}
+		return
+	}
 	if err := run(); err != nil {
 		fatal(err)
 	}
@@ -49,11 +58,11 @@ func run() error {
 	}
 	defer logFile.Close()
 	log := slog.New(slog.NewTextHandler(logFile, &slog.HandlerOptions{Level: slog.LevelInfo}))
-	log.Info("starting", "data", dataDir)
+	log.Info("starting", "version", version, "data", dataDir)
 
 	tools, err := ffmpeg.Locate()
 	if err != nil {
-		return fmt.Errorf("%w\n\nThe app needs its \"ffmpeg\" folder next to it. Reinstall it from the release zip.", err)
+		return fmt.Errorf("%w\n\nThe app needs its \"ffmpeg\" folder next to it. Reinstalling the app puts it back.", err)
 	}
 	st, err := store.Open(appdir.Database(dataDir))
 	if err != nil {
@@ -84,7 +93,7 @@ func run() error {
 		ui = nil
 	}
 	cache := mediacache.New(filepath.Join(dataDir, "cache"), tools, log)
-	srv := &server.Server{Store: st, Tools: tools, Media: cache, Token: set.API.Token, UI: ui, Log: log}
+	srv := &server.Server{Store: st, Tools: tools, Media: cache, Token: set.API.Token, UI: ui, Log: log, Version: version, Notices: notices()}
 	onEvent := srv.Init()
 	q := queue.New(st, tools, log, onEvent)
 	srv.Queue = q
@@ -164,6 +173,20 @@ func startFolder(st *store.Store) string {
 		return filepath.Join(home, "Videos")
 	}
 	return ""
+}
+
+// notices is the path of the third-party license notices installed next
+// to the program, or "" when there are none (a development build).
+func notices() string {
+	exe, err := os.Executable()
+	if err != nil {
+		return ""
+	}
+	p := filepath.Join(filepath.Dir(exe), "THIRD_PARTY_NOTICES.txt")
+	if _, err := os.Stat(p); err != nil {
+		return ""
+	}
+	return p
 }
 
 // devtoolsArgs opens the webview to Chrome DevTools on SG_DEVTOOLS_PORT,

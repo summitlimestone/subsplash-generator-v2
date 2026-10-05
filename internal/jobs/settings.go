@@ -23,6 +23,8 @@ type Settings struct {
 	Render   Render  `json:"render"`
 	// Backlogs are the backlog folders that have been opened.
 	Backlogs []string `json:"backlogs"`
+	// Welcomed is set once the first-run welcome is finished or skipped.
+	Welcomed bool `json:"welcomed"`
 
 	OBS struct {
 		Host     string `json:"host"`

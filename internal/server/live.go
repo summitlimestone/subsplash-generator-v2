@@ -40,6 +40,10 @@ func (s *Server) liveRoutes(api func(string, func(http.ResponseWriter, *http.Req
 	api("PUT /api/series/{name}", s.updateSeries)
 	api("DELETE /api/series/{name}", s.deleteSeries)
 	api("POST /api/import/v1", s.importV1)
+	api("POST /api/welcome", func(http.ResponseWriter, *http.Request) (any, error) {
+		_, err := s.Store.UpdateSettings(func(set *jobs.Settings) { set.Welcomed = true })
+		return nil, err
+	})
 }
 
 var errNoLive = httpError{http.StatusServiceUnavailable, "live mode isn't running"}
@@ -148,8 +152,8 @@ func (s *Server) settings(http.ResponseWriter, *http.Request) (any, error) {
 }
 
 // putSettings replaces the settings. A blank password keeps the saved one
-// unless clearOBSPassword/clearPPPassword is set; the token and backlog
-// folders are managed elsewhere and kept.
+// unless clearOBSPassword/clearPPPassword is set; the token, backlog
+// folders and welcome flag are managed elsewhere and kept.
 func (s *Server) putSettings(_ http.ResponseWriter, r *http.Request) (any, error) {
 	var req struct {
 		jobs.Settings
@@ -172,7 +176,7 @@ func (s *Server) putSettings(_ http.ResponseWriter, r *http.Request) (any, error
 		if in.ProPresenter.Password == "" && !req.ClearPPPassword {
 			in.ProPresenter.Password = set.ProPresenter.Password
 		}
-		in.API.Token, in.Backlogs = set.API.Token, set.Backlogs
+		in.API.Token, in.Backlogs, in.Welcomed = set.API.Token, set.Backlogs, set.Welcomed
 		*set = in
 	})
 	if err != nil {

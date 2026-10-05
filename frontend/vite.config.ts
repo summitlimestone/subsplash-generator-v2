@@ -5,6 +5,7 @@ import { svelte } from '@sveltejs/vite-plugin-svelte'
 export default defineConfig({
   plugins: [svelte()],
   // Not emptied: dist/.gitkeep is committed so go:embed compiles without a build.
-  build: { outDir: 'dist', emptyOutDir: false, target: 'chrome120' },
+  // license writes dist/.vite/license.md, which the release's notices include.
+  build: { outDir: 'dist', emptyOutDir: false, target: 'chrome120', license: true },
   server: { proxy: { '/api': 'http://127.0.0.1:8765' } },
 })

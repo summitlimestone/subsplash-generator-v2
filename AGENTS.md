@@ -16,6 +16,9 @@
 - ffmpeg/ffprobe (BtbN n8.1 GPL build) are bundled with the app and are the only copies it runs.
   Never add a PATH lookup. `SG_FFMPEG_DIR` overrides the folder for
   development and tests only.
+- Job start/end times always include any padding. Padding is a setting the
+  live watch adds when it records a mark; never store it on a job. (v1 files
+  stored it separately; the importer folds it into the times.)
 - Errors are returned, never handled by exiting the process.
 - Keep comments short: say why, not the history of how it got here.
 - Tests run real ffmpeg against small generated clips: `go test ./...`

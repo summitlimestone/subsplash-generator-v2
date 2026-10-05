@@ -3,6 +3,10 @@
 //	sg probe FILE
 //	sg trim [flags] SRC DST
 //	sg stitch [flags] MAIN DST
+//	sg import [-v1] [-config F] [-series F] [STATE_FILE...]
+//	sg jobs
+//	sg render [-steps trim,stitch] (-all | ID...)
+//	sg bulk [-steps trim,stitch] STATES_FILE
 package main
 
 import (
@@ -26,8 +30,12 @@ const usage = `usage:
   sg probe FILE
   sg trim [flags] SRC DST
   sg stitch [flags] MAIN DST
+  sg import [-v1] [-config F] [-series F] [STATE_FILE...]
+  sg jobs
+  sg render [-steps trim,stitch] (-all | ID...)
+  sg bulk [-steps trim,stitch] STATES_FILE
 
-Run "sg trim -h" or "sg stitch -h" for flags.`
+Run "sg COMMAND -h" for a command's flags.`
 
 func main() {
 	if err := run(os.Args[1:]); err != nil {
@@ -42,6 +50,12 @@ func run(args []string) error {
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
+	switch args[0] {
+	case "import":
+		return importCmd(args[1:])
+	case "jobs":
+		return jobsCmd(args[1:])
+	}
 	tools, err := ffmpeg.Locate()
 	if err != nil {
 		return err
@@ -53,6 +67,10 @@ func run(args []string) error {
 		return trim(ctx, tools, args[1:])
 	case "stitch":
 		return stitch(ctx, tools, args[1:])
+	case "render":
+		return renderCmd(ctx, tools, args[1:])
+	case "bulk":
+		return bulkCmd(ctx, tools, args[1:])
 	}
 	return errors.New(usage)
 }

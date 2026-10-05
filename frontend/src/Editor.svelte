@@ -96,10 +96,13 @@
     video.playbackRate = rate
     video.play()
   }
-  function playFromStart() {
+  function goStart() {
     seek(start ?? 0)
     timeline?.show(time)
-    play()
+  }
+  function goEnd() {
+    seek(end ?? duration)
+    timeline?.show(time)
   }
   function toggle() {
     if (video.paused) play()
@@ -212,8 +215,8 @@
     else if (k === 'ArrowRight') e.shiftKey ? jump(1) : step(1)
     else if (k === 'i' || k === 'I') setStart()
     else if (k === 'o' || k === 'O') setEnd()
-    else if (k === 'Home' && start != null) (seek(start), timeline?.show(start))
-    else if (k === 'End' && end != null) (seek(end), timeline?.show(end))
+    else if (k === 'Home') goStart()
+    else if (k === 'End') goEnd()
     else if (k === '+' || k === '=') timeline?.zoom(0.5)
     else if (k === '-') timeline?.zoom(2)
     else if (k === 'Enter') save()
@@ -277,21 +280,33 @@
   </div>
 
   <div class="transport">
-    <button onclick={() => jump(-10)} title="Back 10 s (J)">&laquo; 10s</button>
-    <button onclick={() => step(-1)} title="Back one frame (&larr;)">&lsaquo;</button>
-    <button class="play" onclick={toggle} title={playing ? 'Pause (Space)' : 'Play (Space)'} aria-label={playing ? 'Pause' : 'Play'}>
-      {#if playing}
-        <svg viewBox="0 0 16 16" width="16" height="16"><rect x="3" y="2" width="3.5" height="12" rx="1" /><rect x="9.5" y="2" width="3.5" height="12" rx="1" /></svg>
-      {:else}
-        <svg viewBox="0 0 16 16" width="16" height="16"><path d="M4 2.2v11.6c0 .6.7 1 1.2.6l9-5.8c.5-.3.5-1 0-1.3l-9-5.8C4.7 1.2 4 1.6 4 2.2z" /></svg>
-      {/if}
-    </button>
-    <button onclick={() => step(1)} title="Forward one frame (&rarr;)">&rsaquo;</button>
-    <button onclick={() => jump(10)} title="Forward 10 s">10s &raquo;</button>
-    <button class="from-start" onclick={playFromStart} title="Play from the start mark (Home, then Space)">
-      <svg viewBox="0 0 16 16" width="14" height="14"><rect x="2" y="2" width="2.5" height="12" rx="1" /><path d="M6.5 2.5v11c0 .6.6.9 1.1.6l7.5-5.5c.4-.3.4-.9 0-1.2L7.6 1.9c-.5-.3-1.1 0-1.1.6z" /></svg>
-      Play from start
-    </button>
+    <div class="controls">
+      <button class="icon" onclick={goStart} title="Go to the start mark (Home)" aria-label="Go to start">
+        <svg viewBox="0 0 16 16"><rect x="2.5" y="3" width="2" height="10" rx="0.8" /><path d="M13 3.6v8.8c0 .5-.6.8-1 .5L6 8.5a.6.6 0 0 1 0-1l6-4.4c.4-.3 1 0 1 .5z" /></svg>
+      </button>
+      <button class="icon" onclick={() => jump(-10)} title="Back 10 s (J)" aria-label="Back 10 seconds">
+        <svg viewBox="0 0 16 16"><path d="M8 3.8v8.4c0 .5-.6.8-1 .5L1.6 8.5a.6.6 0 0 1 0-1L7 3.3c.4-.3 1 0 1 .5zM14.5 3.8v8.4c0 .5-.6.8-1 .5L8.1 8.5a.6.6 0 0 1 0-1l5.4-4.2c.4-.3 1 0 1 .5z" /></svg>
+      </button>
+      <button class="icon" onclick={() => step(-1)} title="Back one frame (&larr;)" aria-label="Back one frame">
+        <svg viewBox="0 0 16 16"><path d="M10 3.5 5.5 8l4.5 4.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" /></svg>
+      </button>
+      <button class="icon play" onclick={toggle} title={playing ? 'Pause (Space)' : 'Play (Space)'} aria-label={playing ? 'Pause' : 'Play'}>
+        {#if playing}
+          <svg viewBox="0 0 16 16"><rect x="3.5" y="2.5" width="3.2" height="11" rx="1" /><rect x="9.3" y="2.5" width="3.2" height="11" rx="1" /></svg>
+        {:else}
+          <svg viewBox="0 0 16 16"><path d="M4.5 2.8v10.4c0 .6.6.9 1.1.6l8.1-5.2c.5-.3.5-.9 0-1.2L5.6 2.2c-.5-.3-1.1 0-1.1.6z" /></svg>
+        {/if}
+      </button>
+      <button class="icon" onclick={() => step(1)} title="Forward one frame (&rarr;)" aria-label="Forward one frame">
+        <svg viewBox="0 0 16 16"><path d="M6 3.5 10.5 8 6 12.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" /></svg>
+      </button>
+      <button class="icon" onclick={() => jump(10)} title="Forward 10 s" aria-label="Forward 10 seconds">
+        <svg viewBox="0 0 16 16"><path d="M8 3.8v8.4c0 .5.6.8 1 .5l5.4-4.2a.6.6 0 0 0 0-1L9 3.3c-.4-.3-1 0-1 .5zM1.5 3.8v8.4c0 .5.6.8 1 .5l5.4-4.2a.6.6 0 0 0 0-1L2.5 3.3c-.4-.3-1 0-1 .5z" /></svg>
+      </button>
+      <button class="icon" onclick={goEnd} title="Go to the end mark (End)" aria-label="Go to end">
+        <svg viewBox="0 0 16 16"><rect x="11.5" y="3" width="2" height="10" rx="0.8" /><path d="M3 3.6v8.8c0 .5.6.8 1 .5l6-4.4a.6.6 0 0 0 0-1L4 3.1c-.4-.3-1 0-1 .5z" /></svg>
+      </button>
+    </div>
     <span class="clock mono">{formatTime(time)}</span>
     {#if rate !== 1 && playing}<span class="muted">{rate}x</span>{/if}
     <span class="spacer"></span>
@@ -338,13 +353,16 @@
   header label { display: flex; align-items: center; gap: 6px; color: var(--muted); }
   .stage { flex: 1; min-height: 0; display: flex; justify-content: center; background: #000; border-radius: 6px; }
   video { max-width: 100%; max-height: 100%; }
-  .transport { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-  .transport .play { width: 44px; display: flex; justify-content: center; }
-  .transport svg { fill: currentColor; display: block; }
-  .from-start { display: flex; align-items: center; gap: 6px; margin-left: 8px; }
-  .clock { font-size: 18px; margin-left: 8px; }
+  .transport { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  /* One height for every control on the row. */
+  .transport button, .transport input { height: 32px; }
+  .transport input { width: 118px; text-align: center; }
+  .controls { display: flex; gap: 4px; }
+  .icon { width: 36px; padding: 0; display: inline-flex; align-items: center; justify-content: center; }
+  .icon svg { width: 16px; height: 16px; fill: currentColor; }
+  .clock { font-size: 18px; margin-left: 6px; min-width: 128px; }
   .spacer { flex: 1; }
-  .mark { display: flex; align-items: center; gap: 4px; padding-left: 8px; border-left: 3px solid; }
+  .mark { display: flex; align-items: center; gap: 4px; padding-left: 8px; border-left: 3px solid; height: 32px; }
   .mark.start { border-color: var(--start); }
   .mark.end { border-color: var(--end); }
   .length { min-width: 64px; text-align: right; }

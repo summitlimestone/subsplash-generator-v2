@@ -21,6 +21,7 @@ import (
 	"github.com/summitlimestone/subsplash-generator-v2/internal/backlog"
 	"github.com/summitlimestone/subsplash-generator-v2/internal/ffmpeg"
 	"github.com/summitlimestone/subsplash-generator-v2/internal/jobs"
+	"github.com/summitlimestone/subsplash-generator-v2/internal/live"
 	"github.com/summitlimestone/subsplash-generator-v2/internal/media"
 	"github.com/summitlimestone/subsplash-generator-v2/internal/mediacache"
 	"github.com/summitlimestone/subsplash-generator-v2/internal/queue"
@@ -43,6 +44,10 @@ type Server struct {
 	OpenFile func(title string, patterns []string) (string, error)
 	// OpenFolder, when the app has a window, shows a native folder picker.
 	OpenFolder func(title string) (string, error)
+	// Live runs live sessions; nil without the app.
+	Live *live.Manager
+	// NewToken makes a fresh API token.
+	NewToken func() string
 
 	hub *hub
 }
@@ -107,6 +112,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/jobs/{id}/video", s.video)
 	mux.HandleFunc("GET /api/jobs/{id}/peaks", s.peaks)
 	mux.HandleFunc("GET /api/jobs/{id}/thumb", s.thumb)
+	s.liveRoutes(api)
 	mux.HandleFunc("GET /", s.ui)
 	return s.auth(mux)
 }
@@ -215,16 +221,6 @@ func (s *Server) info(http.ResponseWriter, *http.Request) (any, error) {
 		"canOpenFiles":   s.OpenFile != nil,
 		"encoders":       []string{"software", "nvenc", "qsv", "amf"},
 	}, nil
-}
-
-func (s *Server) settings(http.ResponseWriter, *http.Request) (any, error) {
-	set, err := s.Store.Settings()
-	if err != nil {
-		return nil, err
-	}
-	// Secrets stay in the app.
-	set.OBS.Password, set.ProPresenter.Password, set.API.Token = "", "", ""
-	return set, nil
 }
 
 // jobEdit is what a client may change on a job. Nil fields are unchanged.

@@ -402,3 +402,84 @@ func TestEditSeveralAndImport(t *testing.T) {
 		t.Errorf("missing file: %d", res.StatusCode)
 	}
 }
+
+func TestSettingsKeepSecrets(t *testing.T) {
+	e := setup(t)
+	set, _ := e.srv.Store.Settings()
+	set.OBS.Password, set.ProPresenter.Password, set.API.Token = "obs-pw", "pp-pw", "tok"
+	_ = e.srv.Store.SaveSettings(set)
+
+	_, body := e.do(t, "GET", "/api/settings", nil)
+	var got map[string]any
+	_ = json.Unmarshal(body, &got)
+	if strings.Contains(string(body), "obs-pw") || strings.Contains(string(body), "pp-pw") || got["hasOBSPassword"] != true {
+		t.Fatalf("settings: %s", body)
+	}
+	// Saving the form back as-is (blank passwords) keeps them.
+	got["obs"].(map[string]any)["host"] = "10.0.0.5"
+	res, body := e.do(t, "PUT", "/api/settings", got)
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("put: %d %s", res.StatusCode, body)
+	}
+	saved, _ := e.srv.Store.Settings()
+	if saved.OBS.Host != "10.0.0.5" || saved.OBS.Password != "obs-pw" || saved.ProPresenter.Password != "pp-pw" || saved.API.Token != "tok" {
+		t.Errorf("saved %+v", saved)
+	}
+	// A new password replaces it; clearing removes it.
+	got["obs"].(map[string]any)["password"] = "new"
+	got["clearPPPassword"] = true
+	e.do(t, "PUT", "/api/settings", got)
+	saved, _ = e.srv.Store.Settings()
+	if saved.OBS.Password != "new" || saved.ProPresenter.Password != "" {
+		t.Errorf("passwords %q %q", saved.OBS.Password, saved.ProPresenter.Password)
+	}
+	// Bad input is refused.
+	pp := got["propresenter"].(map[string]any)
+	pp["begin_slide"] = map[string]any{"text": "[", "match": "regex"}
+	if res, body := e.do(t, "PUT", "/api/settings", got); res.StatusCode != http.StatusBadRequest {
+		t.Errorf("bad regex: %d %s", res.StatusCode, body)
+	}
+}
+
+func TestSeriesManagement(t *testing.T) {
+	e := setup(t)
+	fall := map[string]any{"name": "Fall", "intro": "i.png", "outro": "o.mp4", "transition_duration": 1}
+	if res, body := e.do(t, "POST", "/api/series", fall); res.StatusCode != http.StatusOK || !strings.Contains(string(body), `"transition":"fade"`) {
+		t.Fatalf("create: %d %s", res.StatusCode, body)
+	}
+	if res, _ := e.do(t, "POST", "/api/series", fall); res.StatusCode != http.StatusConflict {
+		t.Errorf("duplicate: %d", res.StatusCode)
+	}
+	if res, _ := e.do(t, "POST", "/api/series", map[string]any{"name": "X", "intro": "i.png", "outro": "o.mp4"}); res.StatusCode != http.StatusBadRequest {
+		t.Errorf("no transition length: %d", res.StatusCode)
+	}
+	_, body := e.do(t, "POST", "/api/jobs", map[string]any{"recording": e.rec, "series": "Fall"})
+	var j jobs.Job
+	_ = json.Unmarshal(body, &j)
+
+	// Renaming carries over to the job.
+	fall["name"] = "Fall 2026"
+	if res, body := e.do(t, "PUT", "/api/series/Fall", fall); res.StatusCode != http.StatusOK {
+		t.Fatalf("rename: %d %s", res.StatusCode, body)
+	}
+	if _, body := e.do(t, "GET", "/api/jobs/"+j.ID, nil); !strings.Contains(string(body), `"series":"Fall 2026"`) {
+		t.Errorf("job after rename: %s", body)
+	}
+	if _, err := e.srv.Store.FindSeries("Fall"); err == nil {
+		t.Error("old name still exists")
+	}
+	// Deleting one in use needs force.
+	if res, _ := e.do(t, "DELETE", "/api/series/Fall%202026", nil); res.StatusCode != http.StatusConflict {
+		t.Errorf("delete in use: %d", res.StatusCode)
+	}
+	if res, _ := e.do(t, "DELETE", "/api/series/Fall%202026?force=1", nil); res.StatusCode != http.StatusOK {
+		t.Errorf("forced delete: %d", res.StatusCode)
+	}
+}
+
+func TestLiveNeedsTheApp(t *testing.T) {
+	e := setup(t)
+	if res, _ := e.do(t, "GET", "/api/live", nil); res.StatusCode != http.StatusServiceUnavailable {
+		t.Errorf("live without a manager: %d", res.StatusCode)
+	}
+}

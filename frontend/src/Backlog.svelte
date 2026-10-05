@@ -123,7 +123,7 @@
       </div>
 
       <table>
-        <thead><tr><th class="check"><input type="checkbox" checked={list.length > 0 && selected.size === list.length} onchange={toggleAll} /></th><th></th><th class="clip">Recording</th><th>Date</th><th>Series</th><th class="sermon">Sermon</th></tr></thead>
+        <thead><tr><th class="check"><input type="checkbox" checked={list.length > 0 && selected.size === list.length} onchange={toggleAll} /></th><th></th><th>Recording</th><th>Date</th><th>Series</th><th class="sermon">Sermon</th></tr></thead>
         <tbody>
           {#each list as j (j.id)}
             <tr onclick={() => onedit(j.id)} class:done={isMarked(j)} class:skipped={j.skipped} class:selected={selected.has(j.id)}>
@@ -131,9 +131,9 @@
                 <input type="checkbox" checked={selected.has(j.id)} onchange={() => (selected.has(j.id) ? selected.delete(j.id) : selected.add(j.id))} />
               </td>
               <td class="tick">{j.skipped ? '–' : isMarked(j) ? '✓' : ''}</td>
-              <td class="clip" title={j.recording}>{rel(j.recording)}</td>
+              <td><div class="clip" title={j.recording}>{rel(j.recording)}</div></td>
               <td class="nowrap">{j.date}</td>
-              <td>{j.series}</td>
+              <td class="nowrap">{j.series}</td>
               <td class="mono sermon">
                 {#if j.skipped}<span class="muted">skipped</span>
                 {:else if isMarked(j)}{formatTime(j.start, false)} – {formatTime(j.end, false)}{/if}
@@ -172,8 +172,8 @@
   tr.selected td { background: #2a2a24; }
   .tick { width: 24px; color: var(--accent); font-weight: 700; }
   tr.skipped td { color: var(--muted); }
-  /* The recording takes the room left and is cut short with an ellipsis. */
-  .clip { width: 100%; max-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  /* Long recording paths are cut short so the table never scrolls sideways. */
+  .clip { max-width: 40vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .nowrap, .mono { white-space: nowrap; }
   @media (max-width: 860px) { .sermon { display: none; } }
 </style>

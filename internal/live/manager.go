@@ -471,22 +471,6 @@ func (m *Manager) markAt(which string, at time.Time) error {
 	return m.setMark(id, which, math.Max(0, t))
 }
 
-// Nudge moves a mark by delta seconds.
-func (m *Manager) Nudge(which string, delta float64) error {
-	j, err := m.job()
-	if err != nil {
-		return err
-	}
-	cur := j.Start
-	if which == "end" {
-		cur = j.End
-	}
-	if cur == nil {
-		return fmt.Errorf("%w: the %s isn't marked yet", ErrNotApplicable, which)
-	}
-	return m.setMark(j.ID, which, math.Max(0, *cur+delta))
-}
-
 func (m *Manager) setMark(id, which string, t float64) error {
 	t = math.Round(t*1000) / 1000
 	var problem error

@@ -83,12 +83,6 @@
       <div class="mark {which}">
         <button disabled={!canMark || busy} onclick={() => act(() => api.liveMark(which))}>Mark {which === 'start' ? 'start' : 'end'}</button>
         <div class="value mono">{value != null ? formatTime(value, false) : '--:--:--'}</div>
-        {#if !compact && value != null && live?.phase !== 'idle'}
-          <div class="nudge">
-            <button class="small" onclick={() => act(() => api.liveNudge(which, -1))} title="1 s earlier">−1s</button>
-            <button class="small" onclick={() => act(() => api.liveNudge(which, 1))} title="1 s later">+1s</button>
-          </div>
-        {/if}
       </div>
     {/each}
   </div>
@@ -151,7 +145,6 @@
   .mark.end > button { border-left: 3px solid var(--end); }
   .value { text-align: center; font-size: 15px; }
   .compact .value { font-size: 12px; }
-  .nudge { display: flex; gap: 4px; justify-content: center; }
   .secondary { flex-wrap: wrap; }
   .secondary > button { flex: 0 0 auto; }
   .bar { height: 4px; background: var(--surface); border-radius: 2px; overflow: hidden; }

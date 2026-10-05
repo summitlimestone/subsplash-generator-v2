@@ -11,7 +11,7 @@
   let manualPath = $state('')
   let preview = $state<Job | null>(null)
 
-  // Bulk edit recordings show up here once marked; the Bulk edit tab has the rest.
+  // Recordings from the Bulk edit tab show up here once they are marked.
   const shown = $derived(app.jobs.filter((j) => !j.backlog || (isMarked(j) && !j.skipped)))
   const rendering = (j: Job) => ['queued', 'trimming', 'stitching'].includes(j.status)
   const canTrim = (j: Job) => !rendering(j) && j.start != null && j.end != null && !!j.recording

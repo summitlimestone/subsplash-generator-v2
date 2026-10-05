@@ -8,6 +8,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/summitlimestone/subsplash-generator-v2/frontend"
@@ -42,9 +43,10 @@ func selfTest(out io.Writer) bool {
 			if err != nil {
 				return err
 			}
-			v, err := tools.Output(ctx, []string{"-version"})
+			v, err := tools.Probe(ctx, []string{"-version"})
 			if err == nil {
-				fmt.Fprintf(out, "     %.60s\n", v)
+				first, _, _ := strings.Cut(string(v), "\n")
+				fmt.Fprintf(out, "     %s\n", strings.TrimSpace(first))
 			}
 			return err
 		}},

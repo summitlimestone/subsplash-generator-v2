@@ -21,6 +21,8 @@ type Settings struct {
 	PadStart float64 `json:"pad_start"`
 	PadEnd   float64 `json:"pad_end"`
 	Render   Render  `json:"render"`
+	// Backlogs are the backlog folders that have been opened.
+	Backlogs []string `json:"backlogs"`
 
 	OBS struct {
 		Host     string `json:"host"`

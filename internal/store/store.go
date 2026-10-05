@@ -78,6 +78,18 @@ func (s *Store) SaveSettings(set jobs.Settings) error {
 	return err
 }
 
+// UpdateSettings applies change to the saved settings and saves them.
+func (s *Store) UpdateSettings(change func(*jobs.Settings)) (jobs.Settings, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	set, err := s.Settings()
+	if err != nil {
+		return set, err
+	}
+	change(&set)
+	return set, s.SaveSettings(set)
+}
+
 // Series returns every series, sorted by name.
 func (s *Store) Series() ([]jobs.Series, error) {
 	rows, err := s.db.Query(`SELECT data FROM series ORDER BY name`)

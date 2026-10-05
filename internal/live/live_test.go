@@ -191,25 +191,26 @@ func TestServiceWithSlideMarks(t *testing.T) {
 	obs.set(true, 125*time.Second)
 	r.slide("BEGIN", "")
 	r.waitFor(t, "start mark", func(State) bool { return r.job(t).Start != nil })
-	if got := *r.job(t).Start; got != 125.6 {
+	if got := *r.job(t).Start; !near(got, 125.6) {
 		t.Errorf("start %v, want 125.6 (125 s + 0.6 s padding)", got)
 	}
 	obs.set(true, 2400*time.Second)
 	r.slide("y", "AMEN")
 	r.waitFor(t, "end mark", func(State) bool { return r.job(t).End != nil })
-	if got := *r.job(t).End; got != 2400 {
+	if got := *r.job(t).End; !near(got, 2400) {
 		t.Errorf("end %v", got)
 	}
 	// A later begin slide doesn't move a start that's set.
 	obs.set(true, 2500*time.Second)
 	r.slide("BEGIN", "")
 	r.waitFor(t, "slide list", func(s State) bool { return len(s.Slides) == 4 })
-	if got := *r.job(t).Start; got != 125.6 {
+	if got := *r.job(t).Start; !near(got, 125.6) {
 		t.Errorf("start moved to %v", got)
 	}
 
 	// Nudges, and their limits.
-	if err := r.m.Nudge("start", -0.6); err != nil || *r.job(t).Start != 125 {
+	before := *r.job(t).Start
+	if err := r.m.Nudge("start", -0.6); err != nil || !near(*r.job(t).Start, before-0.6) {
 		t.Errorf("nudge: %v, start %v", err, *r.job(t).Start)
 	}
 	if err := r.m.Nudge("start", 5000); !errors.Is(err, ErrNotApplicable) {
@@ -249,7 +250,7 @@ func TestManualMarksAndRecordingAlreadyRunning(t *testing.T) {
 	// Marking again moves the mark.
 	obs.set(true, 320*time.Second)
 	_ = r.m.Mark("end")
-	if j := r.job(t); *j.Start != 300 || *j.End != 320 {
+	if j := r.job(t); !near(*j.Start, 300) || !near(*j.End, 320) {
 		t.Errorf("marks %v %v", *j.Start, *j.End)
 	}
 	_ = r.m.SetSeries("Advent")
@@ -276,7 +277,7 @@ func TestOBSDropWhileRecording(t *testing.T) {
 	obs.Close()
 	r.waitFor(t, "notice", func(s State) bool { return !s.OBSConnected && s.Notice != "" })
 	r.waitFor(t, "reconnected and stopped", func(s State) bool { return s.OBSConnected && s.Phase == PhaseStopped })
-	if j := r.job(t); j.Recording != file || *j.Start != 60 {
+	if j := r.job(t); j.Recording != file || !near(*j.Start, 60) {
 		t.Errorf("job after the drop %+v", j)
 	}
 }
@@ -290,6 +291,24 @@ func TestProPresenterWrongPassword(t *testing.T) {
 	r.waitFor(t, "auth error", func(s State) bool { return !s.PPConnected && s.PPError != "" })
 	if s := r.m.State(); s.PPError != "ProPresenter rejected the password (Stage App password)" {
 		t.Errorf("error %q", s.PPError)
+	}
+}
+
+// near allows for the few milliseconds the test itself takes.
+func near(a, b float64) bool { return a > b-0.05 && a < b+0.05 }
+
+func TestMarkCorrectsForASlowOBS(t *testing.T) {
+	r := setup(t, 0)
+	obs := r.obs.current()
+	obs.set(true, 100*time.Second)
+	_ = r.m.Start("")
+	r.waitFor(t, "recording", func(s State) bool { return s.Phase == PhaseRecording })
+	// The button was pressed 3 s ago; OBS answers now with 100 s.
+	if err := r.m.markAt("start", time.Now().Add(-3*time.Second)); err != nil {
+		t.Fatal(err)
+	}
+	if got := *r.job(t).Start; !near(got, 97) {
+		t.Errorf("start %v, want 97", got)
 	}
 }
 

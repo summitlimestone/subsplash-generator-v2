@@ -25,6 +25,7 @@ import (
 	"github.com/summitlimestone/subsplash-generator-v2/internal/media"
 	"github.com/summitlimestone/subsplash-generator-v2/internal/mediacache"
 	"github.com/summitlimestone/subsplash-generator-v2/internal/queue"
+	"github.com/summitlimestone/subsplash-generator-v2/internal/render"
 	"github.com/summitlimestone/subsplash-generator-v2/internal/store"
 	"github.com/summitlimestone/subsplash-generator-v2/internal/timestamp"
 	"github.com/summitlimestone/subsplash-generator-v2/internal/v1import"
@@ -215,11 +216,26 @@ func (s *Server) events(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+type encoderInfo struct {
+	Name          string   `json:"name"`
+	Presets       []string `json:"presets"`
+	DefaultPreset string   `json:"defaultPreset"`
+}
+
+func encoders() []encoderInfo {
+	var out []encoderInfo
+	for _, name := range render.EncoderNames() {
+		e := render.Encoders[name]
+		out = append(out, encoderInfo{name, e.Presets, e.DefaultPreset})
+	}
+	return out
+}
+
 func (s *Server) info(http.ResponseWriter, *http.Request) (any, error) {
 	return map[string]any{
 		"peaksPerSecond": mediacache.PeaksPerSecond,
 		"canOpenFiles":   s.OpenFile != nil,
-		"encoders":       []string{"software", "nvenc", "qsv", "amf"},
+		"encoders":       encoders(),
 	}, nil
 }
 

@@ -364,11 +364,15 @@ func (m *Manager) slide(s Slide) {
 		return
 	}
 	// Slides only set marks that aren't set yet; a manual mark wins.
+	var err2 error
 	switch {
 	case j.Start == nil && Matches(set.ProPresenter.BeginSlide, s):
-		_ = m.Mark("start")
+		err2 = m.markAt("start", s.At)
 	case j.Start != nil && j.End == nil && Matches(set.ProPresenter.EndSlide, s):
-		_ = m.Mark("end")
+		err2 = m.markAt("end", s.At)
+	}
+	if err2 != nil {
+		m.notice("A slide matched, but marking failed: " + err2.Error())
 	}
 }
 
@@ -428,7 +432,13 @@ func (m *Manager) SetSeries(name string) error {
 
 // Mark sets the start or end at the recording's current position, plus
 // the padding setting. Marking again moves the mark.
-func (m *Manager) Mark(which string) error {
+func (m *Manager) Mark(which string) error { return m.markAt(which, m.now()) }
+
+// markAt marks the recording's position at the moment at, when the slide
+// changed or the button was pressed. A busy OBS can take seconds to answer,
+// so its answer is wound back by how long ago that moment was, taking OBS's
+// reading as being from the middle of the round trip.
+func (m *Manager) markAt(which string, at time.Time) error {
 	m.mu.Lock()
 	conn, phase, id := m.obs, m.st.Phase, m.st.JobID
 	m.mu.Unlock()
@@ -438,15 +448,21 @@ func (m *Manager) Mark(which string) error {
 	if conn == nil {
 		return fmt.Errorf("%w: OBS isn't connected", ErrNotApplicable)
 	}
+	asked := m.now()
 	status, err := conn.RecordStatus()
 	if err != nil {
 		return err
 	}
+	answered := m.now()
 	set, err := m.Store.Settings()
 	if err != nil {
 		return err
 	}
+	reading := asked.Add(answered.Sub(asked) / 2)
 	t := status.Elapsed.Seconds()
+	if !status.Paused && reading.After(at) {
+		t -= reading.Sub(at).Seconds()
+	}
 	if which == "start" {
 		t += set.PadStart
 	} else {

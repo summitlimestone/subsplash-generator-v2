@@ -43,30 +43,37 @@ const stderrTail = 16 << 10
 // calling onProgress, if non-nil, as it reports progress. It returns
 // ctx.Err() if ctx is cancelled, after ffmpeg has been killed.
 func (t Tools) Run(ctx context.Context, args []string, onProgress func(Progress)) error {
+	_, err := t.RunStderr(ctx, args, onProgress)
+	return err
+}
+
+// RunStderr is Run, also returning the tail of ffmpeg's stderr on
+// success, where analysis filters such as loudnorm print their results.
+func (t Tools) RunStderr(ctx context.Context, args []string, onProgress func(Progress)) (string, error) {
 	full := append([]string{"-hide_banner", "-nostdin", "-nostats", "-progress", "pipe:1"}, args...)
 	cmd := t.command(ctx, t.FFmpeg, full)
 	stderr := &tailBuffer{max: stderrTail}
 	cmd.Stderr = stderr
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
-		return err
+		return "", err
 	}
 	if err := cmd.Start(); err != nil {
-		return &Error{Tool: "ffmpeg", Err: err}
+		return "", &Error{Tool: "ffmpeg", Err: err}
 	}
 	readProgress(stdout, onProgress)
 	err = cmd.Wait()
 	if ctx.Err() != nil {
-		return ctx.Err()
+		return "", ctx.Err()
 	}
 	if err != nil {
-		return &Error{Tool: "ffmpeg", Err: err, Stderr: stderr.String()}
+		return "", &Error{Tool: "ffmpeg", Err: err, Stderr: stderr.String()}
 	}
-	return nil
+	return stderr.String(), nil
 }
 
 // Output runs ffmpeg with args and returns its full stderr, where ffmpeg
-// writes analysis results (loudnorm, trace_headers). Only for short runs.
+// writes analysis results such as trace_headers. Only for short runs.
 func (t Tools) Output(ctx context.Context, args []string) (string, error) {
 	full := append([]string{"-hide_banner", "-nostdin", "-nostats"}, args...)
 	cmd := t.command(ctx, t.FFmpeg, full)

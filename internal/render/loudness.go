@@ -30,7 +30,7 @@ var jsonObjectRE = regexp.MustCompile(`\{[^{}]*\}`)
 // It returns ok=false (and logs why) when the result is unusable, e.g.
 // silent audio, so the trim goes ahead without normalizing.
 func (r *Runner) measureLoudness(ctx context.Context, src string, start, end, targetI float64) (loudness, bool, error) {
-	stderr, err := r.Tools.Output(ctx, []string{
+	stderr, err := r.runStderr(ctx, "measuring loudness", end-start, []string{
 		"-ss", fmt.Sprintf("%.3f", start), "-i", src, "-t", fmt.Sprintf("%.3f", end-start),
 		"-vn", "-af", fmt.Sprintf("loudnorm=I=%g:TP=%g:LRA=%g:print_format=json", targetI, targetTP, targetLRA),
 		"-f", "null", "-",

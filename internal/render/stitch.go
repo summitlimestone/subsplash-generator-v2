@@ -148,7 +148,7 @@ func (r *Runner) Stitch(ctx context.Context, main, dst string, o Stitch) (err er
 			s := subsplash1080p
 			// No +faststart: Subsplash's own preset leaves it off.
 			return append(cmd, "-profile:v", s.profile, "-level:v", s.level, "-g", strconv.Itoa(s.keyint),
-				"-c:a", "aac", "-b:a", kbpsArg(s.audioKbps), dst)
+				"-c:a", "aac", "-b:a", kbpsArg(s.audioKbps), "-ar", "48000", dst)
 		}
 		cmd = append(cmd, aacArgs...)
 		return append(cmd, "-movflags", "+faststart", dst)

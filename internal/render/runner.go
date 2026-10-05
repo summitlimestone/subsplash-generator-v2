@@ -29,4 +29,6 @@ func (r *Runner) log() *slog.Logger {
 }
 
 // The AAC settings every render uses unless a preset says otherwise.
-var aacArgs = []string{"-c:a", "aac", "-b:a", "192k"}
+// -ar is explicit because loudnorm resamples to 192 kHz internally,
+// which otherwise comes out as 96 kHz audio at a fraction of the bitrate.
+var aacArgs = []string{"-c:a", "aac", "-b:a", "192k", "-ar", "48000"}

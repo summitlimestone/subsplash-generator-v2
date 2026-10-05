@@ -178,6 +178,11 @@ func TestTrimNormalizesLoudness(t *testing.T) {
 		if got := integratedLoudness(t, r, out); math.Abs(got+16) > 1.5 {
 			t.Errorf("fast copy %v: loudness %.1f LUFS, want -16", fast, got)
 		}
+		// loudnorm resamples to 192 kHz internally; the output must not inherit that.
+		raw, err := r.Tools.Probe(context.Background(), []string{"-select_streams", "a:0", "-show_entries", "stream=sample_rate", "-of", "csv=p=0", out})
+		if err != nil || strings.TrimSpace(string(raw)) != "48000" {
+			t.Errorf("fast copy %v: audio sample rate %q, %v; want 48000", fast, raw, err)
+		}
 	}
 }
 

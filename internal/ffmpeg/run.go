@@ -42,15 +42,21 @@ const stderrTail = 16 << 10
 // Run runs ffmpeg with args (which must include -y when overwriting),
 // calling onProgress, if non-nil, as it reports progress. It returns
 // ctx.Err() if ctx is cancelled, after ffmpeg has been killed.
+// Only errors are logged, so a failure's message is the actual problem
+// rather than the stream listing.
 func (t Tools) Run(ctx context.Context, args []string, onProgress func(Progress)) error {
-	_, err := t.RunStderr(ctx, args, onProgress)
+	_, err := t.run(ctx, "error", args, onProgress)
 	return err
 }
 
-// RunStderr is Run, also returning the tail of ffmpeg's stderr on
-// success, where analysis filters such as loudnorm print their results.
+// RunStderr is Run at the info log level, also returning the tail of
+// stderr, where analysis filters such as loudnorm print their results.
 func (t Tools) RunStderr(ctx context.Context, args []string, onProgress func(Progress)) (string, error) {
-	full := append([]string{"-hide_banner", "-nostdin", "-nostats", "-progress", "pipe:1"}, args...)
+	return t.run(ctx, "info", args, onProgress)
+}
+
+func (t Tools) run(ctx context.Context, loglevel string, args []string, onProgress func(Progress)) (string, error) {
+	full := append([]string{"-hide_banner", "-nostdin", "-nostats", "-loglevel", loglevel, "-progress", "pipe:1"}, args...)
 	cmd := t.command(ctx, t.FFmpeg, full)
 	stderr := &tailBuffer{max: stderrTail}
 	cmd.Stderr = stderr

@@ -133,16 +133,20 @@ func TestJobLifecycle(t *testing.T) {
 		t.Fatalf("created %+v", j)
 	}
 
-	for edit, want := range map[string]int{
-		`{"start": 1}`:           http.StatusBadRequest,
-		`{"start": 4, "end": 2}`: http.StatusBadRequest,
-		`{"date": "2026-13-40"}`: http.StatusBadRequest,
-		`{"start": 1.2, "end": 4.8, "date": "2026-10-04"}`: http.StatusOK,
-	} {
+	edits := []struct {
+		body string
+		want int
+	}{
+		{`{"start": 1}`, http.StatusBadRequest},
+		{`{"start": 4, "end": 2}`, http.StatusBadRequest},
+		{`{"date": "2026-13-40"}`, http.StatusBadRequest},
+		{`{"start": 1.2, "end": 4.8, "date": "2026-10-04"}`, http.StatusOK},
+	}
+	for _, ed := range edits {
 		var v any
-		_ = json.Unmarshal([]byte(edit), &v)
-		if res, body := e.do(t, "PATCH", "/api/jobs/"+j.ID, v); res.StatusCode != want {
-			t.Errorf("PATCH %s: %d %s", edit, res.StatusCode, body)
+		_ = json.Unmarshal([]byte(ed.body), &v)
+		if res, body := e.do(t, "PATCH", "/api/jobs/"+j.ID, v); res.StatusCode != ed.want {
+			t.Errorf("PATCH %s: %d %s", ed.body, res.StatusCode, body)
 		}
 	}
 	_, body = e.do(t, "GET", "/api/jobs/"+j.ID, nil)

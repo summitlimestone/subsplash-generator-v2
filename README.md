@@ -73,13 +73,14 @@ On the **Live** tab (or the OBS dock):
 1. Choose the series and click **Start watching**.
 2. Start recording in OBS as usual.
 3. The sermon's start and end are marked when the chosen slides come up,
-   or when you click **Mark start** and **Mark end**. The **−1s** and
-   **+1s** buttons under a mark nudge it, and clicking a Mark button again
-   moves it.
+   or when you click **Mark start** and **Mark end**. Clicking a Mark
+   button again moves that mark to now.
 4. Stop recording in OBS.
-5. Click **Trim**. When it's done, **Check trim** opens the trimmed video in
+5. To fine-tune the marks, click **Edit marks** to open the recording in
+   the editor.
+6. Click **Trim**. When it's done, **Check trim** opens the trimmed video in
    the editor if you want to look it over.
-6. Click **Stitch** to add the intro and outro.
+7. Click **Stitch** to add the intro and outro.
 
 The finished video is saved in `Videos\Subsplash`, named by date (such as
 `2026-10-05.mp4`). If OBS or ProPresenter drops out during the service, the

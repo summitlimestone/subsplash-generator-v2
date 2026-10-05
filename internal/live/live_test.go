@@ -208,15 +208,6 @@ func TestServiceWithSlideMarks(t *testing.T) {
 		t.Errorf("start moved to %v", got)
 	}
 
-	// Nudges, and their limits.
-	before := *r.job(t).Start
-	if err := r.m.Nudge("start", -0.6); err != nil || !near(*r.job(t).Start, before-0.6) {
-		t.Errorf("nudge: %v, start %v", err, *r.job(t).Start)
-	}
-	if err := r.m.Nudge("start", 5000); !errors.Is(err, ErrNotApplicable) {
-		t.Errorf("nudging start past end: %v", err)
-	}
-
 	file := filepath.Join(r.obs.dir, "2026-10-05 10-00-00.mkv")
 	obs.set(false, 0)
 	obs.events <- RecordEvent{Recording: false, Path: file}

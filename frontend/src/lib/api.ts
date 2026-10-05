@@ -149,7 +149,6 @@ export const api = {
   liveStart: (series: string) => call<LiveState>('POST', '/api/live/start', { series }),
   liveStop: () => call<LiveState>('POST', '/api/live/stop'),
   liveMark: (which: 'start' | 'end') => call<LiveState>('POST', '/api/live/mark', { which }),
-  liveNudge: (which: 'start' | 'end', seconds: number) => call<LiveState>('POST', '/api/live/nudge', { which, seconds }),
   liveSeries: (name: string) => call<LiveState>('PUT', '/api/live/series', { name }),
   settings: () => call<Settings>('GET', '/api/settings'),
   saveSettings: (s: Settings & { clearOBSPassword?: boolean; clearPPPassword?: boolean }) =>

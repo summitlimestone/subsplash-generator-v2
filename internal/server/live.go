@@ -31,7 +31,6 @@ func (s *Server) liveRoutes(api func(string, func(http.ResponseWriter, *http.Req
 		return s.Live.State(), nil
 	})
 	api("POST /api/live/mark", s.liveMark)
-	api("POST /api/live/nudge", s.liveNudge)
 	api("PUT /api/live/series", s.liveSeries)
 	api("PUT /api/settings", s.putSettings)
 	api("POST /api/settings/token", s.regenerateToken)
@@ -88,26 +87,6 @@ func (s *Server) liveMark(_ http.ResponseWriter, r *http.Request) (any, error) {
 		return nil, badRequest("which must be start or end")
 	}
 	if err := s.Live.Mark(req.Which); err != nil {
-		return nil, liveError(err)
-	}
-	return s.Live.State(), nil
-}
-
-func (s *Server) liveNudge(_ http.ResponseWriter, r *http.Request) (any, error) {
-	if s.Live == nil {
-		return nil, errNoLive
-	}
-	var req struct {
-		Which   string  `json:"which"`
-		Seconds float64 `json:"seconds"`
-	}
-	if err := decode(r, &req); err != nil {
-		return nil, err
-	}
-	if req.Which != "start" && req.Which != "end" {
-		return nil, badRequest("which must be start or end")
-	}
-	if err := s.Live.Nudge(req.Which, req.Seconds); err != nil {
 		return nil, liveError(err)
 	}
 	return s.Live.State(), nil

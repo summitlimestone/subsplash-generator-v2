@@ -368,3 +368,37 @@ func TestBacklog(t *testing.T) {
 		t.Errorf("reopened: %s", body)
 	}
 }
+
+func TestEditSeveralAndImport(t *testing.T) {
+	e := setup(t)
+	var ids []string
+	for range 2 {
+		_, body := e.do(t, "POST", "/api/jobs", map[string]any{"recording": e.rec})
+		var j jobs.Job
+		_ = json.Unmarshal(body, &j)
+		ids = append(ids, j.ID)
+	}
+	if res, body := e.do(t, "POST", "/api/jobs/edit", map[string]any{"ids": ids, "edit": map[string]any{"series": "Advent"}}); res.StatusCode != http.StatusOK {
+		t.Fatalf("edit: %d %s", res.StatusCode, body)
+	}
+	for _, id := range ids {
+		_, body := e.do(t, "GET", "/api/jobs/"+id, nil)
+		if !strings.Contains(string(body), `"series":"Advent"`) {
+			t.Errorf("job %s: %s", id, body)
+		}
+	}
+	// A bad edit changes nothing.
+	if res, _ := e.do(t, "POST", "/api/jobs/edit", map[string]any{"ids": ids, "edit": map[string]any{"date": "nope"}}); res.StatusCode != http.StatusBadRequest {
+		t.Errorf("bad edit: %d", res.StatusCode)
+	}
+
+	file := filepath.Join(t.TempDir(), "bulk_states.json")
+	_ = os.WriteFile(file, []byte(`[{"recording_path": "a.mkv", "raw_begin_offset": 1, "raw_end_offset": 5},
+	  {"recording_path": "b.mkv", "raw_begin_offset": null, "raw_end_offset": null}]`), 0o644)
+	if res, body := e.do(t, "POST", "/api/import", map[string]any{"path": file}); res.StatusCode != http.StatusOK || !strings.Contains(string(body), `"imported":2`) {
+		t.Errorf("import: %d %s", res.StatusCode, body)
+	}
+	if res, _ := e.do(t, "POST", "/api/import", map[string]any{"path": file + ".missing"}); res.StatusCode != http.StatusBadRequest {
+		t.Errorf("missing file: %d", res.StatusCode)
+	}
+}

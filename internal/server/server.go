@@ -26,6 +26,7 @@ import (
 	"github.com/summitlimestone/subsplash-generator-v2/internal/queue"
 	"github.com/summitlimestone/subsplash-generator-v2/internal/store"
 	"github.com/summitlimestone/subsplash-generator-v2/internal/timestamp"
+	"github.com/summitlimestone/subsplash-generator-v2/internal/v1import"
 )
 
 // Server holds everything the API needs.
@@ -90,6 +91,8 @@ func (s *Server) Handler() http.Handler {
 	api("POST /api/jobs", s.createJob)
 	api("GET /api/jobs/{id}", func(_ http.ResponseWriter, r *http.Request) (any, error) { return s.Store.Job(r.PathValue("id")) })
 	api("PATCH /api/jobs/{id}", s.patchJob)
+	api("POST /api/jobs/edit", s.editJobs)
+	api("POST /api/import", s.importStates)
 	api("DELETE /api/jobs/{id}", s.deleteJob)
 	api("POST /api/render", s.render)
 	api("POST /api/jobs/{id}/cancel", s.cancel)
@@ -294,32 +297,91 @@ func (s *Server) createJob(_ http.ResponseWriter, r *http.Request) (any, error) 
 }
 
 func (s *Server) patchJob(_ http.ResponseWriter, r *http.Request) (any, error) {
-	id := r.PathValue("id")
 	var e jobEdit
 	if err := decode(r, &e); err != nil {
 		return nil, err
 	}
-	j, err := s.Store.Job(id)
+	js, err := s.edit([]string{r.PathValue("id")}, e)
 	if err != nil {
 		return nil, err
 	}
-	switch j.Status {
-	case jobs.StatusQueued, jobs.StatusTrimming, jobs.StatusStitching:
-		return nil, httpError{http.StatusConflict, "the job is rendering; cancel it first"}
+	return js[0], nil
+}
+
+// editJobs applies one edit to several jobs, e.g. setting their series.
+func (s *Server) editJobs(_ http.ResponseWriter, r *http.Request) (any, error) {
+	var req struct {
+		IDs  []string `json:"ids"`
+		Edit jobEdit  `json:"edit"`
 	}
-	if err := e.apply(j); err != nil {
+	if err := decode(r, &req); err != nil {
 		return nil, err
 	}
-	if err := s.Store.SaveJob(j); err != nil {
-		return nil, err
+	if len(req.IDs) == 0 {
+		return nil, badRequest("no jobs selected")
 	}
-	s.hub.publish("job", j)
-	if j.Backlog != "" {
-		if err := backlog.SaveFor(s.Store, j.Backlog); err != nil {
-			return nil, fmt.Errorf("saved, but couldn't update the backlog folder's %s: %w", backlog.FileName, err)
+	return s.edit(req.IDs, req.Edit)
+}
+
+// edit applies e to every job in ids, checking them all first so a
+// problem with one changes none, then saves backlog folders' marks.
+func (s *Server) edit(ids []string, e jobEdit) ([]*jobs.Job, error) {
+	var js []*jobs.Job
+	for _, id := range ids {
+		j, err := s.Store.Job(id)
+		if err != nil {
+			return nil, err
+		}
+		switch j.Status {
+		case jobs.StatusQueued, jobs.StatusTrimming, jobs.StatusStitching:
+			return nil, httpError{http.StatusConflict, fmt.Sprintf("%s is rendering; cancel it first", j.Stem)}
+		}
+		if err := e.apply(j); err != nil {
+			return nil, err
+		}
+		js = append(js, j)
+	}
+	dirs := map[string]bool{}
+	for _, j := range js {
+		if err := s.Store.SaveJob(j); err != nil {
+			return nil, err
+		}
+		s.hub.publish("job", j)
+		if j.Backlog != "" {
+			dirs[j.Backlog] = true
 		}
 	}
-	return j, nil
+	for dir := range dirs {
+		if err := backlog.SaveFor(s.Store, dir); err != nil {
+			return nil, fmt.Errorf("saved, but couldn't update the folder's %s: %w", backlog.FileName, err)
+		}
+	}
+	return js, nil
+}
+
+// importStates adds the jobs in a v1 render-state or bulk states file.
+func (s *Server) importStates(_ http.ResponseWriter, r *http.Request) (any, error) {
+	var req struct {
+		Path string `json:"path"`
+	}
+	if err := decode(r, &req); err != nil {
+		return nil, err
+	}
+	set, err := s.Store.Settings()
+	if err != nil {
+		return nil, err
+	}
+	js, err := v1import.States(req.Path, set)
+	if err != nil {
+		return nil, badRequest("%v", err)
+	}
+	for _, j := range js {
+		if err := s.Store.SaveJob(j); err != nil {
+			return nil, err
+		}
+		s.hub.publish("job", j)
+	}
+	return map[string]int{"imported": len(js)}, nil
 }
 
 func (s *Server) deleteJob(_ http.ResponseWriter, r *http.Request) (any, error) {

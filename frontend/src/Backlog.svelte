@@ -5,12 +5,31 @@
   import { api, type BacklogSummary } from './lib/api'
   import { app, backlogJobs, isMarked, nextToMark } from './lib/state.svelte'
   import { formatTime } from './lib/time'
+  import { SvelteSet } from 'svelte/reactivity'
+  import SeriesDialog from './SeriesDialog.svelte'
 
   let { onedit, current = $bindable() }: { onedit: (id: string) => void; current: string } = $props()
 
   let summaries = $state<BacklogSummary[]>([])
   let error = $state('')
   let manualDir = $state('')
+  const selected = new SvelteSet<string>()
+  let settingSeries = $state(false)
+
+  async function setSeries(series: string) {
+    settingSeries = false
+    try {
+      await api.editJobs([...selected], { series })
+      selected.clear()
+    } catch (e) {
+      error = (e as Error).message
+    }
+  }
+
+  function toggleAll() {
+    if (selected.size === list.length) selected.clear()
+    else list.forEach((j) => selected.add(j.id))
+  }
 
   const list = $derived(current ? backlogJobs(current) : [])
   const marked = $derived(list.filter(isMarked).length)
@@ -94,16 +113,23 @@
           {#if skipped}<span class="muted">&middot; {skipped} skipped</span>{/if}
         </div>
         <div class="bar"><div style="width:{list.length - skipped ? (marked / (list.length - skipped)) * 100 : 0}%"></div></div>
+        {#if selected.size}
+          <span class="muted">{selected.size} selected</span>
+          <button onclick={() => (settingSeries = true)}>Set series&hellip;</button>
+        {/if}
         <button class="accent big" onclick={markNext} disabled={remaining === 0}>
           {remaining === 0 ? 'All marked' : `Mark next (${remaining} left)`}
         </button>
       </div>
 
       <table>
-        <thead><tr><th></th><th>Recording</th><th>Date</th><th>Series</th><th>Sermon</th></tr></thead>
+        <thead><tr><th class="check"><input type="checkbox" checked={list.length > 0 && selected.size === list.length} onchange={toggleAll} /></th><th></th><th>Recording</th><th>Date</th><th>Series</th><th>Sermon</th></tr></thead>
         <tbody>
           {#each list as j (j.id)}
-            <tr onclick={() => onedit(j.id)} class:done={isMarked(j)} class:skipped={j.skipped}>
+            <tr onclick={() => onedit(j.id)} class:done={isMarked(j)} class:skipped={j.skipped} class:selected={selected.has(j.id)}>
+              <td class="check" onclick={(e) => e.stopPropagation()}>
+                <input type="checkbox" checked={selected.has(j.id)} onchange={() => (selected.has(j.id) ? selected.delete(j.id) : selected.add(j.id))} />
+              </td>
               <td class="tick">{j.skipped ? '–' : isMarked(j) ? '✓' : ''}</td>
               <td>{rel(j.recording)}</td>
               <td>{j.date}</td>
@@ -121,6 +147,10 @@
   {#if error}<p class="error">{error}</p>{/if}
 </div>
 
+{#if settingSeries}
+  <SeriesDialog count={selected.size} freeText onapply={setSeries} oncancel={() => (settingSeries = false)} />
+{/if}
+
 <style>
   .backlog { padding: 12px 14px; display: flex; flex-direction: column; gap: 12px; }
   .intro { max-width: 520px; margin: 60px auto; text-align: center; display: flex; flex-direction: column; gap: 12px; align-items: center; }
@@ -137,6 +167,8 @@
   th { text-align: left; color: var(--muted); font-weight: 500; font-size: 12px; padding: 4px 8px; border-bottom: 1px solid var(--border); }
   td { padding: 7px 8px; border-bottom: 1px solid #2b2928; cursor: pointer; }
   tr:hover td { background: #2a2828; }
+  .check { width: 28px; cursor: default; }
+  tr.selected td { background: #2a2a24; }
   .tick { width: 24px; color: var(--accent); font-weight: 700; }
   tr.skipped td { color: var(--muted); }
 </style>

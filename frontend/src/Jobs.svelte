@@ -3,6 +3,7 @@
   import { api, ApiError, type Job, type Step } from './lib/api'
   import { app, isMarked } from './lib/state.svelte'
   import { formatTime } from './lib/time'
+  import SeriesDialog from './SeriesDialog.svelte'
 
   let { onedit }: { onedit: (id: string) => void } = $props()
 
@@ -10,6 +11,41 @@
   let problems = $state<string[]>([])
   let manualPath = $state('')
   let preview = $state<Job | null>(null)
+  let settingSeries = $state(false)
+  let notice = $state('')
+
+  async function setSeries(series: string) {
+    settingSeries = false
+    try {
+      await api.editJobs([...selected], { series })
+      selected.clear()
+    } catch (e) {
+      problems = [(e as Error).message]
+    }
+  }
+
+  // Imports a v1 render-state file or bulk render list.
+  async function importFile() {
+    problems = []
+    notice = ''
+    let path = manualPath.trim()
+    if (app.info?.canOpenFiles) {
+      try {
+        path = (await api.openFile('Choose a v1 render-state or bulk render file', ['*.json'])).path
+      } catch (e) {
+        problems = [(e as Error).message]
+        return
+      }
+    }
+    if (!path) return
+    try {
+      const r = await api.importFile(path)
+      manualPath = ''
+      notice = `Imported ${r.imported} ${r.imported === 1 ? 'job' : 'jobs'}.`
+    } catch (e) {
+      problems = [(e as Error).message]
+    }
+  }
 
   // Recordings from the Bulk edit tab show up here once they are marked.
   const shown = $derived(app.jobs.filter((j) => !j.backlog || (isMarked(j) && !j.skipped)))
@@ -76,12 +112,15 @@
 <div class="jobs">
   <div class="toolbar">
     {#if !app.info?.canOpenFiles}
-      <input bind:value={manualPath} placeholder="Path to a recording" size="50" />
+      <input bind:value={manualPath} placeholder="Path to a recording or v1 file" size="50" />
     {/if}
     <button class="accent" onclick={add}>Add recording</button>
+    <button onclick={importFile} title="Add the jobs from a v1 render-state file or bulk render list">Import v1 file&hellip;</button>
+    {#if notice}<span class="muted">{notice}</span>{/if}
     <span class="spacer"></span>
     {#if selected.size > 0}
       <span class="muted">{selected.size} selected</span>
+      <button onclick={() => (settingSeries = true)}>Set series&hellip;</button>
       <button onclick={() => render([...selected], ['trim'])}>Trim</button>
       <button onclick={() => render([...selected], ['stitch'])}>Stitch</button>
       <button onclick={() => render([...selected], ['trim', 'stitch'])}>Trim &amp; stitch</button>
@@ -151,6 +190,10 @@
   {/if}
 </div>
 
+{#if settingSeries}
+  <SeriesDialog count={selected.size} onapply={setSeries} oncancel={() => (settingSeries = false)} />
+{/if}
+
 {#if preview}
   <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
   <div class="modal" onclick={() => (preview = null)}>
@@ -194,3 +237,4 @@
   .panel-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
   .panel video { width: 100%; max-height: 75vh; background: #000; }
 </style>
+

@@ -1,0 +1,44 @@
+name: test
+
+on:
+  push:
+    branches-ignore: [main]
+  pull_request:
+
+jobs:
+  linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      # The same BtbN build line the app bundles on Windows; distro ffmpeg
+      # versions vary too much to test against.
+      - name: Fetch ffmpeg
+        run: |
+          curl -sSL https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-n8.1-latest-linux64-gpl-8.1.tar.xz | tar -xJ
+          echo "SG_FFMPEG_DIR=$PWD/ffmpeg-n8.1-latest-linux64-gpl-8.1/bin" >> "$GITHUB_ENV"
+      - run: test -z "$(gofmt -l .)"
+      - run: go vet ./...
+      - run: go test ./...
+
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      # The same ffmpeg build the app bundles. GPL, not LGPL: LGPL builds
+      # lack libx264. 8.1, not master/9.0: those need NVIDIA driver 610+ for NVENC.
+      - name: Fetch ffmpeg
+        shell: pwsh
+        run: |
+          $url = "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-n8.1-latest-win64-gpl-shared-8.1.zip"
+          Invoke-WebRequest $url -OutFile ffmpeg.zip
+          Expand-Archive ffmpeg.zip -DestinationPath ffmpeg-dl
+          $bin = (Get-ChildItem ffmpeg-dl -Directory | Select-Object -First 1).FullName + "\bin"
+          "SG_FFMPEG_DIR=$bin" | Out-File -FilePath $env:GITHUB_ENV -Append
+      - run: go vet ./...
+      - run: go test ./...

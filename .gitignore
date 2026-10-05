@@ -1,0 +1,5 @@
+/bin/
+/dist/
+*.exe
+# Bundled ffmpeg binaries are downloaded at build time, never committed.
+/ffmpeg/

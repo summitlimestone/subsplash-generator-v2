@@ -43,14 +43,13 @@ CloseApplications=yes
 [Tasks]
 Name: desktopicon; Description: "Create a &desktop shortcut"
 
-[InstallDelete]
-; A newer ffmpeg may ship differently named libraries.
-Type: filesandordirs; Name: "{app}\ffmpeg"
-
 [Files]
 Source: "{#Dist}\{#AppExe}"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#Dist}\LICENSE.txt"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#Dist}\THIRD_PARTY_NOTICES.txt"; DestDir: "{app}"; Flags: ignoreversion
+; Not emptied first: a failed upgrade rolls back what it copied but not what
+; it deleted. Libraries a newer ffmpeg no longer uses are harmless, and the
+; uninstaller remembers and removes them too.
 Source: "{#Dist}\ffmpeg\*"; DestDir: "{app}\ffmpeg"; Flags: ignoreversion recursesubdirs
 Source: "MicrosoftEdgeWebview2Setup.exe"; Flags: dontcopy
 

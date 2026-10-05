@@ -13,12 +13,12 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
-      # The same BtbN build line the app bundles on Windows; distro ffmpeg
+      # The ffmpeg build the app bundles (packaging/ffmpeg.env); distro
       # versions vary too much to test against.
       - name: Fetch ffmpeg
         run: |
-          curl -sSL https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-n8.1-latest-linux64-gpl-8.1.tar.xz | tar -xJ
-          echo "SG_FFMPEG_DIR=$PWD/ffmpeg-n8.1-latest-linux64-gpl-8.1/bin" >> "$GITHUB_ENV"
+          packaging/fetch-ffmpeg.sh linux ffmpeg-bin
+          echo "SG_FFMPEG_DIR=$PWD/ffmpeg-bin" >> "$GITHUB_ENV"
       - run: out=$(gofmt -l .); echo "$out"; test -z "$out"
       # The desktop app is Windows-only; on Linux, Wails would need GTK headers.
       - run: go vet $(go list ./... | grep -v /cmd/app)
@@ -47,16 +47,11 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
-      # The same ffmpeg build the app bundles. GPL, not LGPL: LGPL builds
-      # lack libx264. 8.1, not master/9.0: those need NVIDIA driver 610+ for NVENC.
       - name: Fetch ffmpeg
-        shell: pwsh
+        shell: bash
         run: |
-          $url = "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-n8.1-latest-win64-gpl-shared-8.1.zip"
-          Invoke-WebRequest $url -OutFile ffmpeg.zip
-          Expand-Archive ffmpeg.zip -DestinationPath ffmpeg-dl
-          $bin = (Get-ChildItem ffmpeg-dl -Directory | Select-Object -First 1).FullName + "\bin"
-          "SG_FFMPEG_DIR=$bin" | Out-File -FilePath $env:GITHUB_ENV -Append
+          packaging/fetch-ffmpeg.sh windows ffmpeg-bin
+          echo "SG_FFMPEG_DIR=$(cygpath -w "$PWD/ffmpeg-bin")" >> "$GITHUB_ENV"
       - uses: actions/setup-node@v4
         with:
           node-version: 24

@@ -1,0 +1,103 @@
+name: release
+
+# Builds SubsplashGenerator-Setup.exe and checks it installs and runs. On a
+# v* tag, also drafts a GitHub release with the installer and the source
+# of the bundled ffmpeg, as its GPL license requires.
+on:
+  push:
+    tags: ['v*']
+  pull_request:
+
+permissions:
+  contents: write
+
+jobs:
+  installer:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Version
+        run: |
+          if [[ $GITHUB_REF == refs/tags/v* ]]; then v=$GITHUB_REF_NAME; else v=v0.0.0-dev.${GITHUB_SHA::7}; fi
+          n=${v#v}; n=${n%%-*}
+          echo "VERSION=$v" >> "$GITHUB_ENV"
+          echo "NUMERIC_VERSION=$n.0" >> "$GITHUB_ENV"
+
+      - run: packaging/fetch-ffmpeg.sh windows dist/ffmpeg
+      - run: npm ci && npm run build
+        working-directory: frontend
+      - name: License notices
+        run: |
+          source packaging/ffmpeg.env
+          cp LICENSE dist/LICENSE.txt
+          go run ./packaging/notices -ffmpeg-version "$FFMPEG_VERSION" -ffmpeg-license dist/ffmpeg/LICENSE.txt \
+            -ffmpeg-source "https://github.com/$GITHUB_REPOSITORY/releases/tag/$VERSION" -o dist/THIRD_PARTY_NOTICES.txt
+      - name: Build
+        run: |
+          go run github.com/tc-hib/go-winres@v0.3.3 simply --arch amd64 --out cmd/app/rsrc \
+            --icon packaging/icon.png --manifest gui \
+            --product-name "Subsplash Generator" --file-description "Subsplash Generator" \
+            --product-version "$NUMERIC_VERSION" --file-version "$NUMERIC_VERSION" \
+            --copyright "Copyright (c) 2026 Summit Limestone" --original-filename SubsplashGenerator.exe
+          go build -trimpath -ldflags "-H windowsgui -s -w -X main.version=$VERSION" -o dist/SubsplashGenerator.exe ./cmd/app
+      - name: Self-test
+        shell: pwsh
+        run: packaging/self-test.ps1 dist/SubsplashGenerator.exe
+
+      - name: Installer
+        shell: pwsh
+        run: |
+          Invoke-WebRequest "https://go.microsoft.com/fwlink/p/?LinkId=2124703" -OutFile packaging/MicrosoftEdgeWebview2Setup.exe
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) { choco install innosetup -y --no-progress | Out-Null }
+          & $iscc /Q "/DAppVersion=$env:VERSION" "/DNumericVersion=$env:NUMERIC_VERSION" packaging/installer.iss
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          "{0:N1} MB" -f ((Get-Item dist/SubsplashGenerator-Setup.exe).Length / 1MB)
+      - name: Install, self-test, uninstall
+        shell: pwsh
+        run: |
+          $setup = Start-Process dist/SubsplashGenerator-Setup.exe -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/LOG=install.log' -Wait -PassThru
+          if ($setup.ExitCode) { Get-Content install.log; exit 1 }
+          $dir = "$env:LOCALAPPDATA\Programs\Subsplash Generator"
+          packaging/self-test.ps1 "$dir\SubsplashGenerator.exe"
+          if (-not (Test-Path "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\Subsplash Generator.lnk")) { throw "no Start menu shortcut" }
+          Start-Process "$dir\unins000.exe" -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES' -Wait
+          Start-Sleep 2
+          if (Test-Path "$dir\SubsplashGenerator.exe") { throw "uninstall left the app behind" }
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SubsplashGenerator-Setup
+          path: dist/SubsplashGenerator-Setup.exe
+
+      - name: ffmpeg source
+        run: |
+          source packaging/ffmpeg.env
+          curl -fsSL --retry 3 -o "dist/ffmpeg-$FFMPEG_VERSION-source.tar.gz" "https://github.com/FFmpeg/FFmpeg/archive/$FFMPEG_COMMIT.tar.gz"
+          curl -fsSL --retry 3 -o "dist/FFmpeg-Builds-${BUILDS_COMMIT::10}-build-scripts.tar.gz" "https://github.com/BtbN/FFmpeg-Builds/archive/$BUILDS_COMMIT.tar.gz"
+          ls -l dist/*.tar.gz
+      - name: Draft the release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          source packaging/ffmpeg.env
+          cat > notes.md <<EOF
+          Download **SubsplashGenerator-Setup.exe** and run it. See the [README](https://github.com/$GITHUB_REPOSITORY#readme) for getting started.
+
+          Includes ffmpeg $FFMPEG_VERSION, a separate program under the GPL (built by [BtbN](https://github.com/BtbN/FFmpeg-Builds)). Its source is attached: ffmpeg's own source, and the build scripts that built it, which name the exact version of every library it includes.
+          EOF
+          gh release create "$VERSION" --draft --title "Subsplash Generator $VERSION" --notes-file notes.md \
+            dist/SubsplashGenerator-Setup.exe dist/*-source.tar.gz dist/*-build-scripts.tar.gz

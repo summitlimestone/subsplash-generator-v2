@@ -1,11 +1,12 @@
 // Live app state, kept current by the server's push events.
-import { api, type Info, type Job, type Progress, type Series } from './api'
+import { api, type Info, type Job, type LiveState, type Progress, type Series } from './api'
 
 export const app = $state({
   jobs: [] as Job[],
   series: [] as Series[],
   progress: {} as Record<string, Progress>,
   info: null as Info | null,
+  live: null as LiveState | null,
   connected: false,
 })
 
@@ -28,6 +29,7 @@ export async function refresh() {
   app.jobs = jobs ?? []
   app.series = series ?? []
   app.info = info
+  app.live = await api.live().catch(() => null)
 }
 
 export function connect() {
@@ -43,6 +45,7 @@ export function connect() {
     const { id } = JSON.parse((e as MessageEvent).data)
     app.jobs = app.jobs.filter((j) => j.id !== id)
   })
+  es.addEventListener('live', (e) => (app.live = JSON.parse((e as MessageEvent).data)))
   es.addEventListener('reload', () => refresh().catch(() => {}))
   es.addEventListener('progress', (e) => {
     const p: Progress = JSON.parse((e as MessageEvent).data)

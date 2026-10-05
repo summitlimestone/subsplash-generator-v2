@@ -23,6 +23,7 @@ import (
 	"github.com/summitlimestone/subsplash-generator-v2/frontend"
 	"github.com/summitlimestone/subsplash-generator-v2/internal/appdir"
 	"github.com/summitlimestone/subsplash-generator-v2/internal/ffmpeg"
+	"github.com/summitlimestone/subsplash-generator-v2/internal/live"
 	"github.com/summitlimestone/subsplash-generator-v2/internal/mediacache"
 	"github.com/summitlimestone/subsplash-generator-v2/internal/queue"
 	"github.com/summitlimestone/subsplash-generator-v2/internal/server"
@@ -88,6 +89,10 @@ func run() error {
 	q := queue.New(st, tools, log, onEvent)
 	srv.Queue = q
 	cache.OnPeaks = srv.PeaksUpdated
+	srv.NewToken = newToken
+	onLive, onLiveJob := srv.LiveEvents()
+	liveMgr := &live.Manager{Store: st, Dial: live.DialGoobs, OnChange: onLive, OnJob: onLiveJob}
+	srv.Live = liveMgr
 
 	host := set.API.Host
 	if host == "" {
@@ -106,6 +111,7 @@ func run() error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	go q.Run(ctx)
+	go liveMgr.Run(ctx)
 
 	app := application.New(application.Options{
 		Name:           appName,

@@ -97,41 +97,58 @@ func (r *Runner) fastCopyTrim(ctx context.Context, src, dst string, o Trim, audi
 		return fmt.Errorf("%w: the trim is shorter than one keyframe interval", errNoFastCopy)
 	}
 	tailDuration := max(0, o.End-kf-fastCopyEndMargin/info.FPS)
-	copyArgs := func(out string) []string {
+	if kf-o.Start <= 0.02 {
+		// Already on a keyframe: nothing needs re-encoding.
 		args := []string{
 			"-y", "-ss", fmt.Sprintf("%.3f", kf), "-i", src, "-t", fmt.Sprintf("%.3f", tailDuration),
 			"-map", "0:v:0", "-map", "0:a:0?", "-c:v", "copy",
 		}
 		args = append(args, aacArgs...)
 		args = append(args, audioFilter...)
-		args = append(args, timescaleArgs...)
-		return append(args, out)
+		return r.run(ctx, "copying", tailDuration, append(args, dst))
 	}
 
-	if kf-o.Start <= 0.02 {
-		// Already on a keyframe: nothing needs re-encoding.
-		return r.run(ctx, "copying", tailDuration, copyArgs(dst))
-	}
-
+	// Video is joined from a re-encoded sliver and a stream-copied tail,
+	// while audio is encoded once over the whole range. Encoding audio per
+	// piece rounds each to whole AAC frames, shifting sync at the join.
 	base := filepath.Join(filepath.Dir(dst), "."+filepath.Base(dst))
-	sliver, tail := base+".sliver"+filepath.Ext(dst), base+".tail"+filepath.Ext(dst)
-	defer os.Remove(sliver)
-	defer os.Remove(tail)
+	sliver, tail, video, audio := base+".sliver.mp4", base+".tail.mp4", base+".video.mp4", base+".audio.m4a"
+	for _, p := range []string{sliver, tail, video, audio} {
+		defer os.Remove(p)
+	}
+	duration := kf - o.Start + tailDuration
 
 	sliverArgs := []string{
 		"-y", "-ss", fmt.Sprintf("%.3f", o.Start), "-i", src, "-t", fmt.Sprintf("%.3f", kf-o.Start),
-		"-map", "0:v:0", "-map", "0:a:0?",
-		"-c:v", codec.Encoder, "-crf", fmt.Sprint(o.Encode.CRF), "-preset", "veryfast",
+		"-map", "0:v:0", "-c:v", codec.Encoder, "-crf", fmt.Sprint(o.Encode.CRF), "-preset", "veryfast",
 	}
 	sliverArgs = append(sliverArgs, codec.ExtraArgs...)
-	sliverArgs = append(sliverArgs, aacArgs...)
-	sliverArgs = append(sliverArgs, audioFilter...)
 	sliverArgs = append(sliverArgs, timescaleArgs...)
 	if err := r.run(ctx, "re-encoding the start", kf-o.Start, append(sliverArgs, sliver)); err != nil {
 		return err
 	}
-	if err := r.run(ctx, "copying", tailDuration, copyArgs(tail)); err != nil {
+	tailArgs := []string{
+		"-y", "-ss", fmt.Sprintf("%.3f", kf), "-i", src, "-t", fmt.Sprintf("%.3f", tailDuration),
+		"-map", "0:v:0", "-c:v", "copy",
+	}
+	if err := r.run(ctx, "copying", tailDuration, append(append(tailArgs, timescaleArgs...), tail)); err != nil {
 		return err
 	}
-	return r.concat(ctx, []string{sliver, tail}, dst, []float64{kf - o.Start}, kf-o.Start+tailDuration)
+	if err := r.concat(ctx, []string{sliver, tail}, video, []float64{kf - o.Start}, duration); err != nil {
+		return err
+	}
+	if !info.HasAudio {
+		return os.Rename(video, dst)
+	}
+	audioArgs := []string{
+		"-y", "-ss", fmt.Sprintf("%.3f", o.Start), "-i", src, "-t", fmt.Sprintf("%.3f", duration), "-map", "0:a:0",
+	}
+	audioArgs = append(audioArgs, aacArgs...)
+	audioArgs = append(audioArgs, audioFilter...)
+	if err := r.run(ctx, "encoding audio", duration, append(audioArgs, audio)); err != nil {
+		return err
+	}
+	return r.run(ctx, "combining", duration, []string{
+		"-y", "-i", video, "-i", audio, "-map", "0:v:0", "-map", "1:a:0", "-c", "copy", dst,
+	})
 }

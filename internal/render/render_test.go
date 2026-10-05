@@ -75,6 +75,12 @@ func checkTrim(t *testing.T, r *Runner, out string, start, end float64) {
 	if math.Abs(d["video"]-d["audio"]) > 0.1 {
 		t.Errorf("video %.3fs and audio %.3fs drifted apart", d["video"], d["audio"])
 	}
+	// Separately encoded audio pieces used to leave video starting ~21 ms late.
+	for kind, at := range testmedia.StreamStarts(t, r.Tools, out) {
+		if math.Abs(at) > 0.001 {
+			t.Errorf("%s starts at %.4fs, want 0", kind, at)
+		}
+	}
 }
 
 func TestTrimFastCopy(t *testing.T) {

@@ -109,23 +109,31 @@ func Near(a, b [3]uint8) bool {
 // StreamDurations returns each stream's own duration in seconds by type.
 func StreamDurations(tb testing.TB, t ffmpeg.Tools, path string) map[string]float64 {
 	tb.Helper()
-	out, err := t.Probe(context.Background(), []string{"-show_entries", "stream=codec_type,duration", "-of", "json", path})
+	return streamField(tb, t, path, "duration")
+}
+
+// StreamStarts returns each stream's start time in seconds by type.
+func StreamStarts(tb testing.TB, t ffmpeg.Tools, path string) map[string]float64 {
+	tb.Helper()
+	return streamField(tb, t, path, "start_time")
+}
+
+func streamField(tb testing.TB, t ffmpeg.Tools, path, field string) map[string]float64 {
+	tb.Helper()
+	out, err := t.Probe(context.Background(), []string{"-show_entries", "stream=codec_type," + field, "-of", "json", path})
 	if err != nil {
 		tb.Fatal(err)
 	}
 	var p struct {
-		Streams []struct {
-			CodecType string `json:"codec_type"`
-			Duration  string `json:"duration"`
-		} `json:"streams"`
+		Streams []map[string]any `json:"streams"`
 	}
 	if err := json.Unmarshal(out, &p); err != nil {
 		tb.Fatal(err)
 	}
 	d := map[string]float64{}
 	for _, s := range p.Streams {
-		v, _ := strconv.ParseFloat(s.Duration, 64)
-		d[s.CodecType] = v
+		v, _ := strconv.ParseFloat(fmt.Sprint(s[field]), 64)
+		d[fmt.Sprint(s["codec_type"])] = v
 	}
 	return d
 }

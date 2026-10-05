@@ -24,9 +24,8 @@ type loudness struct {
 var jsonObjectRE = regexp.MustCompile(`\{[^{}]*\}`)
 
 // measureLoudness runs loudnorm's analysis pass over [start, end] of
-// src's audio. Fast-copy trim encodes its audio in two pieces, and
-// single-pass loudnorm could pick a different gain for each, so one
-// measurement over the whole range is applied to both instead.
+// src's audio, so the encode can apply one fixed gain to the whole range
+// instead of single-pass loudnorm's continuously adjusted one.
 // It returns ok=false (and logs why) when the result is unusable, e.g.
 // silent audio, so the trim goes ahead without normalizing.
 func (r *Runner) measureLoudness(ctx context.Context, src string, start, end, targetI float64) (loudness, bool, error) {

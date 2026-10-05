@@ -68,7 +68,7 @@
 <div class="backlog">
   {#if summaries.length === 0}
     <div class="intro">
-      <h2>Mark a backlog of recordings</h2>
+      <h2>Mark a folder of recordings</h2>
       <p class="muted">Choose the folder that holds the recordings. Subfolders are included. You'll go through them one at a time and mark where each sermon starts and ends.</p>
       {#if !app.info?.canOpenFiles}<input bind:value={manualDir} placeholder="Path to the folder" size="50" />{/if}
       <button class="accent big" onclick={choose}>Choose folder</button>

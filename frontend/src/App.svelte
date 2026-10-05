@@ -39,7 +39,7 @@
     <nav>
       <span class="brand">Subsplash Generator</span>
       <button class="tab" class:active={tab === 'jobs'} onclick={() => (tab = 'jobs')}>Jobs</button>
-      <button class="tab" class:active={tab === 'backlog'} onclick={() => (tab = 'backlog')}>Backlog</button>
+      <button class="tab" class:active={tab === 'backlog'} onclick={() => (tab = 'backlog')}>Bulk edit</button>
       <span class="spacer"></span>
       {#if !app.connected}<span class="warn">Reconnecting&hellip;</span>{/if}
     </nav>

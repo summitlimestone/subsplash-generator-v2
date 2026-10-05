@@ -3,3 +3,7 @@
 *.exe
 # Bundled ffmpeg binaries are downloaded at build time, never committed.
 /ffmpeg/
+/frontend/node_modules/
+# Built UI; only the placeholder that keeps go:embed compiling is committed.
+/frontend/dist/*
+!/frontend/dist/.gitkeep

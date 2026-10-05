@@ -9,7 +9,7 @@ import (
 
 const createNoWindow = 0x08000000
 
-// hideWindow keeps a console window from flashing up for each run.
-func hideWindow(cmd *exec.Cmd) {
+// HideWindow keeps a console window from flashing up for each run.
+func HideWindow(cmd *exec.Cmd) {
 	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true, CreationFlags: createNoWindow}
 }

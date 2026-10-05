@@ -4,4 +4,5 @@ package ffmpeg
 
 import "os/exec"
 
-func hideWindow(*exec.Cmd) {}
+// HideWindow keeps a console window from flashing up on Windows.
+func HideWindow(*exec.Cmd) {}

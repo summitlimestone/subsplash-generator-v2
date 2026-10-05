@@ -114,7 +114,7 @@ func (t Tools) command(ctx context.Context, bin string, args []string) *exec.Cmd
 	cmd := exec.CommandContext(ctx, bin, args...)
 	// Don't hang on Wait if a killed process left a pipe open.
 	cmd.WaitDelay = 5 * time.Second
-	hideWindow(cmd)
+	HideWindow(cmd)
 	return cmd
 }
 

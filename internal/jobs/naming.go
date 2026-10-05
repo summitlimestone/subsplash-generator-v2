@@ -3,6 +3,9 @@ package jobs
 import (
 	"fmt"
 	"os"
+	"path/filepath"
+	"regexp"
+	"strings"
 	"time"
 )
 
@@ -63,4 +66,21 @@ func stemFor(stem, date string) bool {
 	var n int
 	_, err := fmt.Sscanf(stem, date+"_%d", &n)
 	return err == nil && n > 1 && stem == fmt.Sprintf("%s_%d", date, n)
+}
+
+var dateInName = regexp.MustCompile(`(?:^|\D)(\d{4})[-_. ]?(\d{2})[-_. ]?(\d{2})(?:\D|$)`)
+
+// DateFromName finds a date in a file name, as OBS names recordings
+// ("2026-10-04 09-57-37.mkv"), or returns "".
+func DateFromName(path string) string {
+	if path == "" {
+		return ""
+	}
+	name := filepath.Base(strings.ReplaceAll(path, `\`, "/"))
+	for _, m := range dateInName.FindAllStringSubmatch(name, -1) {
+		if d := m[1] + "-" + m[2] + "-" + m[3]; ParseDate(d) {
+			return d
+		}
+	}
+	return ""
 }

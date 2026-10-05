@@ -9,7 +9,6 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
-	"time"
 
 	"github.com/summitlimestone/subsplash-generator-v2/internal/jobs"
 	"github.com/summitlimestone/subsplash-generator-v2/internal/timestamp"
@@ -292,25 +291,13 @@ func offset(raw json.RawMessage) (float64, bool, error) {
 	return v, err == nil, err
 }
 
-var dateInName = regexp.MustCompile(`(?:^|\D)(\d{4})[-_. ]?(\d{2})[-_. ]?(\d{2})(?:\D|$)`)
-
 // guessDate takes the date from a date-named output (the v1 Sermon
-// Marker's), else from the recording's file name (OBS names recordings
-// like "2026-10-04 09-57-37.mkv"), else none.
+// Marker's), else from the recording's file name.
 func guessDate(j *jobs.Job) string {
-	for _, p := range []string{j.FinalOutput, j.Recording} {
-		if p == "" {
-			continue
-		}
-		name := filepath.Base(strings.ReplaceAll(p, `\`, "/"))
-		for _, m := range dateInName.FindAllStringSubmatch(name, -1) {
-			d := m[1] + "-" + m[2] + "-" + m[3]
-			if _, err := time.Parse(time.DateOnly, d); err == nil {
-				return d
-			}
-		}
+	if d := jobs.DateFromName(j.FinalOutput); d != "" {
+		return d
 	}
-	return ""
+	return jobs.DateFromName(j.Recording)
 }
 
 func literal(p string) bool { return p != "" && !strftimeCode.MatchString(p) }

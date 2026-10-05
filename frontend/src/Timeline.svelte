@@ -203,10 +203,14 @@
       g.stroke()
       g.lineWidth = 1
       g.fillStyle = color
+      // Labels sit outside the selection, so close marks never overlap,
+      // unless that would push one off the edge.
       const tw = g.measureText(label).width + 8
-      g.fillRect(label === 'END' ? x - tw : x, RULER, tw, 14)
+      let lx = label === 'START' ? x - tw : x
+      if (lx < 0 || lx + tw > width) lx = label === 'START' ? x : x - tw
+      g.fillRect(lx, RULER, tw, 14)
       g.fillStyle = '#111'
-      g.fillText(label, (label === 'END' ? x - tw : x) + 4, RULER + 11)
+      g.fillText(label, lx + 4, RULER + 11)
     }
 
     // Hover and playhead.

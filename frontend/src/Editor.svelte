@@ -44,8 +44,11 @@
   // kept, so scrubbing stays responsive on long recordings.
   let pendingSeek: number | null = null
   let watchdog: ReturnType<typeof setTimeout> | null = null
+  // The playhead stays inside the selection (the whole recording until
+  // the marks are set). Marks move outward by dragging or typing.
+  const clamp = (t: number) => Math.max(start ?? 0, Math.min(end ?? (duration || t), t))
   function seek(t: number) {
-    t = Math.max(0, Math.min(duration || t, t))
+    t = clamp(t)
     time = t
     if (video.seeking) {
       pendingSeek = t
@@ -74,16 +77,29 @@
     }
   }
 
-  // Follow the video smoothly while it plays.
+  // Follow the video smoothly while it plays, stopping at the end mark.
   function tick() {
     if (!video) return
-    if (!video.paused && !video.seeking) time = video.currentTime
+    if (!video.paused && !video.seeking) {
+      time = video.currentTime
+      if (end != null && time >= end) {
+        video.pause()
+        seek(end)
+      }
+    }
     if (playing) requestAnimationFrame(tick)
   }
 
   function play() {
+    // At the end mark, Play starts over from the start mark.
+    if (end != null && time >= end - 0.05) seek(start ?? 0)
     video.playbackRate = rate
     video.play()
+  }
+  function playFromStart() {
+    seek(start ?? 0)
+    timeline?.show(time)
+    play()
   }
   function toggle() {
     if (video.paused) play()
@@ -102,10 +118,19 @@
   function setStart(t = time) {
     start = Math.round(t * 1000) / 1000
     if (end != null && end <= start) end = null
+    if (time < start) seek(start)
   }
   function setEnd(t = time) {
     end = Math.round(t * 1000) / 1000
     if (start != null && start >= end) start = null
+    if (time > end) seek(end)
+  }
+  // Dragging a handle shows the frame under it.
+  function dragMark(which: 'start' | 'end', t: number) {
+    video.pause()
+    if (which === 'start') setStart(t)
+    else setEnd(t)
+    seek(which === 'start' ? start! : end!)
   }
   function commitText(which: 'start' | 'end') {
     const v = parseTime(which === 'start' ? startText : endText)
@@ -119,26 +144,6 @@
     else setEnd(v)
     seek(v)
     timeline?.show(v)
-  }
-
-  // Play the moments around the cuts to check them.
-  function previewStart() {
-    if (start == null) return
-    seek(start)
-    timeline?.show(start)
-    play()
-  }
-  function previewEnd() {
-    if (end == null) return
-    seek(Math.max(0, end - 5))
-    timeline?.show(end)
-    play()
-    const stopAt = end
-    const check = () => {
-      if (video.currentTime >= stopAt) video.pause()
-      else if (!video.paused) requestAnimationFrame(check)
-    }
-    requestAnimationFrame(check)
   }
 
   async function save(): Promise<boolean> {
@@ -266,7 +271,7 @@
       onloadedmetadata={loaded}
       onseeked={seeked}
       onplay={() => ((playing = true), requestAnimationFrame(tick))}
-      onpause={() => ((playing = false), (time = video.currentTime))}
+      onpause={() => ((playing = false), (time = clamp(video.currentTime)))}
       onclick={toggle}
     ></video>
   </div>
@@ -274,21 +279,29 @@
   <div class="transport">
     <button onclick={() => jump(-10)} title="Back 10 s (J)">&laquo; 10s</button>
     <button onclick={() => step(-1)} title="Back one frame (&larr;)">&lsaquo;</button>
-    <button class="play" onclick={toggle} title="Play/pause (Space)">{playing ? 'Pause' : 'Play'}</button>
+    <button class="play" onclick={toggle} title={playing ? 'Pause (Space)' : 'Play (Space)'} aria-label={playing ? 'Pause' : 'Play'}>
+      {#if playing}
+        <svg viewBox="0 0 16 16" width="16" height="16"><rect x="3" y="2" width="3.5" height="12" rx="1" /><rect x="9.5" y="2" width="3.5" height="12" rx="1" /></svg>
+      {:else}
+        <svg viewBox="0 0 16 16" width="16" height="16"><path d="M4 2.2v11.6c0 .6.7 1 1.2.6l9-5.8c.5-.3.5-1 0-1.3l-9-5.8C4.7 1.2 4 1.6 4 2.2z" /></svg>
+      {/if}
+    </button>
     <button onclick={() => step(1)} title="Forward one frame (&rarr;)">&rsaquo;</button>
     <button onclick={() => jump(10)} title="Forward 10 s">10s &raquo;</button>
+    <button class="from-start" onclick={playFromStart} title="Play from the start mark (Home, then Space)">
+      <svg viewBox="0 0 16 16" width="14" height="14"><rect x="2" y="2" width="2.5" height="12" rx="1" /><path d="M6.5 2.5v11c0 .6.6.9 1.1.6l7.5-5.5c.4-.3.4-.9 0-1.2L7.6 1.9c-.5-.3-1.1 0-1.1.6z" /></svg>
+      Play from start
+    </button>
     <span class="clock mono">{formatTime(time)}</span>
     {#if rate !== 1 && playing}<span class="muted">{rate}x</span>{/if}
     <span class="spacer"></span>
     <div class="mark start">
       <button onclick={() => setStart()} title="Set start at the playhead (I)">Set start</button>
       <input class="mono" bind:value={startText} onchange={() => commitText('start')} size="12" />
-      <button class="small" onclick={previewStart} disabled={start == null} title="Play from the start">&#9654;</button>
     </div>
     <div class="mark end">
       <button onclick={() => setEnd()} title="Set end at the playhead (O)">Set end</button>
       <input class="mono" bind:value={endText} onchange={() => commitText('end')} size="12" />
-      <button class="small" onclick={previewEnd} disabled={end == null} title="Play the last 5 s">&#9654;</button>
     </div>
     <span class="length muted">{length != null ? formatTime(length, false) : ''}</span>
   </div>
@@ -304,8 +317,8 @@
       {peaks}
       peaksPerSecond={app.info?.peaksPerSecond ?? 20}
       onseek={(t) => seek(t)}
-      onstart={(t) => setStart(t)}
-      onend={(t) => setEnd(t)}
+      onstart={(t) => dragMark('start', t)}
+      onend={(t) => dragMark('end', t)}
     />
   {/if}
 
@@ -326,7 +339,9 @@
   .stage { flex: 1; min-height: 0; display: flex; justify-content: center; background: #000; border-radius: 6px; }
   video { max-width: 100%; max-height: 100%; }
   .transport { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-  .transport .play { min-width: 64px; }
+  .transport .play { width: 44px; display: flex; justify-content: center; }
+  .transport svg { fill: currentColor; display: block; }
+  .from-start { display: flex; align-items: center; gap: 6px; margin-left: 8px; }
   .clock { font-size: 18px; margin-left: 8px; }
   .spacer { flex: 1; }
   .mark { display: flex; align-items: center; gap: 4px; padding-left: 8px; border-left: 3px solid; }

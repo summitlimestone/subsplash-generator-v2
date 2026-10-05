@@ -7,7 +7,7 @@
   import { app, onPeaks } from './lib/state.svelte'
   import { formatTime, parseTime } from './lib/time'
 
-  let { job, onclose }: { job: Job; onclose: () => void } = $props()
+  let { job, onclose, onnext }: { job: Job; onclose: () => void; onnext?: (afterId: string) => void } = $props()
 
   let video: HTMLVideoElement
   let timeline = $state<Timeline>()
@@ -21,7 +21,10 @@
   let start = $state<number | null>(initial.start)
   let end = $state<number | null>(initial.end)
   let date = $state(initial.date)
-  let series = $state(initial.series)
+  // A backlog's recordings usually run in series, so a new one starts
+  // with the series last used in the same folder.
+  let series = $state(initial.series || (initial.backlog ? lastSeries(initial.backlog) : ''))
+  const isBacklog = !!initial.backlog
   let peaks = $state<Uint8Array | null>(null)
   let peaksDone = $state(false)
   let message = $state('')
@@ -32,6 +35,17 @@
   const dirty = $derived(start !== job.start || end !== job.end || date !== job.date || series !== job.series)
   const length = $derived(start != null && end != null ? end - start : null)
   const visibleSeries = $derived(app.series.filter((s) => !s.hidden || s.name === series))
+  // A backlog may be marked on a machine without the series set up yet, so
+  // its series is free text, suggesting known names and ones already used.
+  const seriesSuggestions = $derived([
+    ...new Set([...app.series.filter((s) => !s.hidden).map((s) => s.name), ...app.jobs.map((j) => j.series).filter(Boolean)]),
+  ].sort())
+
+  function lastSeries(dir: string): string {
+    const used = app.jobs.filter((j) => j.backlog === dir && j.series && j.start != null)
+    used.sort((a, b) => b.updated.localeCompare(a.updated))
+    return used[0]?.series ?? ''
+  }
 
   $effect(() => {
     startText = formatTime(start)
@@ -175,6 +189,19 @@
     }
   }
 
+  async function saveAndNext() {
+    if (await save()) onnext?.(job.id)
+  }
+
+  async function skip() {
+    try {
+      job = await api.updateJob(job.id, { skipped: !job.skipped })
+      if (job.skipped) onnext?.(job.id)
+    } catch (e) {
+      message = (e as Error).message
+    }
+  }
+
   async function saveAndTrim() {
     if (!(await save())) return
     try {
@@ -224,7 +251,7 @@
     else if (k === 'o' || k === 'O') setEnd()
     else if (k === '+' || k === '=') timeline?.zoom(0.5)
     else if (k === '-') timeline?.zoom(2)
-    else if (k === 'Enter') save()
+    else if (k === 'Enter') isBacklog ? saveAndNext() : save()
     else if (k === 'Escape') close()
     else return
     if (handled) e.preventDefault()
@@ -254,20 +281,31 @@
 
 <div class="editor">
   <header>
-    <button onclick={close}>&larr; Jobs</button>
+    <button onclick={close}>&larr; Back</button>
     <div class="title">
       <strong>{job.recording.split(/[\\/]/).pop()}</strong>
     </div>
     <label>Date <input type="text" bind:value={date} placeholder="YYYY-MM-DD" size="10" /></label>
     <label>
       Series
-      <select bind:value={series}>
-        <option value="">(none)</option>
-        {#each visibleSeries as s (s.name)}<option value={s.name}>{s.name}</option>{/each}
-      </select>
+      {#if isBacklog}
+        <input bind:value={series} list="series-options" placeholder="Series name" size="18" />
+        <datalist id="series-options">{#each seriesSuggestions as name}<option value={name}></option>{/each}</datalist>
+      {:else}
+        <select bind:value={series}>
+          <option value="">(none)</option>
+          {#each visibleSeries as s (s.name)}<option value={s.name}>{s.name}</option>{/each}
+        </select>
+      {/if}
     </label>
-    <button onclick={save} disabled={saving || !dirty}>Save</button>
-    <button class="accent" onclick={saveAndTrim} disabled={saving}>Save &amp; trim</button>
+    {#if isBacklog}
+      <button onclick={skip} disabled={saving} title="This recording has no sermon to cut">{job.skipped ? 'Unskip' : 'Skip'}</button>
+      <button onclick={save} disabled={saving || !dirty}>Save</button>
+      <button class="accent" onclick={saveAndNext} disabled={saving} title="Save and mark the next recording (Enter)">Save &amp; next</button>
+    {:else}
+      <button onclick={save} disabled={saving || !dirty}>Save</button>
+      <button class="accent" onclick={saveAndTrim} disabled={saving}>Save &amp; trim</button>
+    {/if}
   </header>
 
   <div class="stage">
@@ -347,7 +385,7 @@
     {#if !peaksDone}
       <span>Loading waveform{duration > 0 && peaks ? ` ${Math.min(99, Math.floor((peaks.length / (duration * (app.info?.peaksPerSecond ?? 20))) * 100))}%` : ''}&hellip;</span>
     {/if}
-    <span class="keys">Space or K play/pause &middot; L faster &middot; J slower &middot; &larr;&rarr; frame &middot; Shift+&larr;&rarr; 1 s &middot; I/O set start/end &middot; Shift+J/L go to start/end &middot; wheel zoom &middot; Enter save</span>
+    <span class="keys">Space or K play/pause &middot; L faster &middot; J slower &middot; &larr;&rarr; frame &middot; Shift+&larr;&rarr; 1 s &middot; I/O set start/end &middot; Shift+J/L go to start/end &middot; wheel zoom &middot; Enter {isBacklog ? 'save & next' : 'save'}</span>
   </footer>
 </div>
 

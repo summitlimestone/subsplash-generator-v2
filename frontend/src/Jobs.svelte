@@ -1,7 +1,7 @@
 <script lang="ts">
   import { SvelteSet } from 'svelte/reactivity'
   import { api, ApiError, type Job, type Step } from './lib/api'
-  import { app } from './lib/state.svelte'
+  import { app, isMarked } from './lib/state.svelte'
   import { formatTime } from './lib/time'
 
   let { onedit }: { onedit: (id: string) => void } = $props()
@@ -11,6 +11,8 @@
   let manualPath = $state('')
   let preview = $state<Job | null>(null)
 
+  // Backlog recordings show up here once marked; the Backlog tab has the rest.
+  const shown = $derived(app.jobs.filter((j) => !j.backlog || (isMarked(j) && !j.skipped)))
   const rendering = (j: Job) => ['queued', 'trimming', 'stitching'].includes(j.status)
   const canTrim = (j: Job) => !rendering(j) && j.start != null && j.end != null && !!j.recording
   const canStitch = (j: Job) => !rendering(j) && !!j.trimmed
@@ -66,8 +68,8 @@
   }
 
   function toggleAll() {
-    if (selected.size === app.jobs.length) selected.clear()
-    else app.jobs.forEach((j) => selected.add(j.id))
+    if (selected.size === shown.length) selected.clear()
+    else shown.forEach((j) => selected.add(j.id))
   }
 </script>
 
@@ -93,13 +95,13 @@
     </div>
   {/if}
 
-  {#if app.jobs.length === 0}
+  {#if shown.length === 0}
     <p class="empty muted">No jobs yet. Add a recording to mark its sermon.</p>
   {:else}
     <table>
       <thead>
         <tr>
-          <th><input type="checkbox" checked={selected.size === app.jobs.length} onchange={toggleAll} /></th>
+          <th><input type="checkbox" checked={selected.size === shown.length} onchange={toggleAll} /></th>
           <th>Video</th>
           <th>Series</th>
           <th>Sermon</th>
@@ -108,7 +110,7 @@
         </tr>
       </thead>
       <tbody>
-        {#each app.jobs as j (j.id)}
+        {#each shown as j (j.id)}
           {@const p = app.progress[j.id]}
           <tr class:selected={selected.has(j.id)}>
             <td><input type="checkbox" checked={selected.has(j.id)} onchange={() => (selected.has(j.id) ? selected.delete(j.id) : selected.add(j.id))} /></td>

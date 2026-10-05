@@ -20,8 +20,25 @@ jobs:
           curl -sSL https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-n8.1-latest-linux64-gpl-8.1.tar.xz | tar -xJ
           echo "SG_FFMPEG_DIR=$PWD/ffmpeg-n8.1-latest-linux64-gpl-8.1/bin" >> "$GITHUB_ENV"
       - run: test -z "$(gofmt -l .)"
-      - run: go vet ./...
-      - run: go test ./...
+      # The desktop app is Windows-only; on Linux, Wails would need GTK headers.
+      - run: go vet $(go list ./... | grep -v /cmd/app)
+      - run: go test -race $(go list ./... | grep -v /cmd/app)
+
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm run check
+      - run: npm run build
 
   windows:
     runs-on: windows-latest
@@ -40,5 +57,11 @@ jobs:
           Expand-Archive ffmpeg.zip -DestinationPath ffmpeg-dl
           $bin = (Get-ChildItem ffmpeg-dl -Directory | Select-Object -First 1).FullName + "\bin"
           "SG_FFMPEG_DIR=$bin" | Out-File -FilePath $env:GITHUB_ENV -Append
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: npm ci && npm run build
+        working-directory: frontend
       - run: go vet ./...
       - run: go test ./...
+      - run: go build -ldflags "-H windowsgui" -o SubsplashGenerator.exe ./cmd/app

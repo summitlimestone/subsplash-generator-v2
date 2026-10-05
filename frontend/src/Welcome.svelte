@@ -114,9 +114,9 @@
   h2 { margin: 0 0 4px; }
   p { margin: 0; }
   ol, ul { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 4px; }
-  .grid { display: grid; grid-template-columns: 1fr 90px 1fr auto; gap: 8px; align-items: end; }
-  label { display: flex; flex-direction: column; gap: 4px; color: var(--muted); }
-  label input { color: var(--text); min-width: 0; }
+  .grid { display: grid; grid-template-columns: minmax(0, 1fr) 80px minmax(0, 1fr) auto; gap: 8px; align-items: end; }
+  label { display: flex; flex-direction: column; gap: 4px; color: var(--muted); min-width: 0; }
+  label input { color: var(--text); width: 100%; box-sizing: border-box; }
   .buttons { display: flex; gap: 8px; justify-content: flex-end; margin-top: 6px; }
   .ok { color: var(--accent); }
   .small { font-size: 13px; }

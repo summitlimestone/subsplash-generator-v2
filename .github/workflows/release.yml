@@ -46,11 +46,9 @@ jobs:
             -ffmpeg-source "https://github.com/$GITHUB_REPOSITORY/releases/tag/$VERSION" -o dist/THIRD_PARTY_NOTICES.txt
       - name: Build
         run: |
-          go run github.com/tc-hib/go-winres@v0.3.3 simply --arch amd64 --out cmd/app/rsrc \
-            --icon packaging/icon.png --manifest gui \
-            --product-name "Subsplash Generator" --file-description "Subsplash Generator" \
-            --product-version "$NUMERIC_VERSION" --file-version "$NUMERIC_VERSION" \
-            --copyright "Copyright (c) 2026 Summit Limestone" --original-filename SubsplashGenerator.exe
+          # The icon's resource ID is 32512 because that's where Wails looks for the window icon.
+          go run github.com/tc-hib/go-winres@v0.3.3 make --in packaging/winres.json --arch amd64 --out cmd/app/rsrc \
+            --product-version "$NUMERIC_VERSION" --file-version "$NUMERIC_VERSION"
           go build -trimpath -ldflags "-H windowsgui -s -w -X main.version=$VERSION" -o dist/SubsplashGenerator.exe ./cmd/app
       - name: Self-test
         shell: pwsh

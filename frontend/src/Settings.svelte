@@ -221,7 +221,7 @@
         <label class="inline"><input type="checkbox" checked={form.api.host === '0.0.0.0'} onchange={(e) => form && (form.api.host = (e.target as HTMLInputElement).checked ? '0.0.0.0' : '127.0.0.1')} /> Allow other computers on the network</label>
         <label>Port <input type="number" bind:value={form.api.port} /></label>
       </div>
-      <button type="button" class="small" onclick={regenerate}>Make a new token</button>
+      <div><button type="button" class="small" onclick={regenerate}>Make a new token</button></div>
     </section>
 
     <section>

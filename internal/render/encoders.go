@@ -138,14 +138,18 @@ func (r *Runner) encodeWithFallback(ctx context.Context, e Encode, label string,
 
 // run runs one ffmpeg step, reporting its progress as a fraction of duration.
 func (r *Runner) run(ctx context.Context, label string, duration float64, args []string) error {
-	_, err := r.runStderr(ctx, label, duration, args)
-	return err
+	r.log().Debug("ffmpeg", "step", label, "args", args)
+	return r.Tools.Run(ctx, args, r.progress(label, duration))
 }
 
-// runStderr is run, also returning the tail of ffmpeg's stderr.
+// runStderr is run, also returning the tail of ffmpeg's info-level stderr.
 func (r *Runner) runStderr(ctx context.Context, label string, duration float64, args []string) (string, error) {
 	r.log().Debug("ffmpeg", "step", label, "args", args)
-	return r.Tools.RunStderr(ctx, args, func(p ffmpeg.Progress) {
+	return r.Tools.RunStderr(ctx, args, r.progress(label, duration))
+}
+
+func (r *Runner) progress(label string, duration float64) func(ffmpeg.Progress) {
+	return func(p ffmpeg.Progress) {
 		if r.OnProgress == nil {
 			return
 		}
@@ -154,5 +158,5 @@ func (r *Runner) runStderr(ctx context.Context, label string, duration float64, 
 			frac = math.Min(1, p.OutTime.Seconds()/duration)
 		}
 		r.OnProgress(Step{Label: label, Fraction: frac, Speed: p.Speed})
-	})
+	}
 }

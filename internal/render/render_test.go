@@ -217,6 +217,10 @@ func TestEncoderFallsBackToSoftware(t *testing.T) {
 	if !rec.contains("falling back to software") {
 		t.Error("expected a software fallback")
 	}
+	// The logged reason is ffmpeg's error, not its stream listing.
+	if rec.contains("Stream mapping") || !rec.contains("no_such_encoder") {
+		t.Errorf("fallback reason should be just the error:\n%s", rec)
+	}
 	checkTrim(t, r, out, 1, 3)
 }
 

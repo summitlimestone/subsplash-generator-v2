@@ -122,6 +122,9 @@ func run() error {
 		}
 		return d.PromptForSingleSelection()
 	}
+	srv.OpenFolder = func(title string) (string, error) {
+		return app.Dialog.OpenFile().SetTitle(title).CanChooseDirectories(true).CanChooseFiles(false).PromptForSingleSelection()
+	}
 	app.Window.NewWithOptions(application.WebviewWindowOptions{
 		Title:            appName,
 		Width:            1400,

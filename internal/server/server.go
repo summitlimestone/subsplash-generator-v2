@@ -13,10 +13,12 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/summitlimestone/subsplash-generator-v2/internal/backlog"
 	"github.com/summitlimestone/subsplash-generator-v2/internal/ffmpeg"
 	"github.com/summitlimestone/subsplash-generator-v2/internal/jobs"
 	"github.com/summitlimestone/subsplash-generator-v2/internal/media"
@@ -38,6 +40,8 @@ type Server struct {
 	// OpenFile, when the app has a window, shows a native file picker and
 	// returns the chosen path, or "" if cancelled.
 	OpenFile func(title string, patterns []string) (string, error)
+	// OpenFolder, when the app has a window, shows a native folder picker.
+	OpenFolder func(title string) (string, error)
 
 	hub *hub
 }
@@ -92,6 +96,10 @@ func (s *Server) Handler() http.Handler {
 	api("GET /api/series", func(http.ResponseWriter, *http.Request) (any, error) { return s.Store.Series() })
 	api("GET /api/settings", s.settings)
 	api("POST /api/dialog/open", s.openDialog)
+	api("POST /api/dialog/folder", s.folderDialog)
+	api("GET /api/backlogs", s.backlogs)
+	api("POST /api/backlogs", s.openBacklog)
+	api("POST /api/backlogs/forget", s.forgetBacklog)
 	api("GET /api/jobs/{id}/probe", s.probe)
 	mux.HandleFunc("GET /api/jobs/{id}/video", s.video)
 	mux.HandleFunc("GET /api/jobs/{id}/peaks", s.peaks)
@@ -224,6 +232,7 @@ type jobEdit struct {
 	Date      *string      `json:"date"`
 	Series    *string      `json:"series"`
 	Render    *jobs.Render `json:"render"`
+	Skipped   *bool        `json:"skipped"`
 }
 
 func (e jobEdit) apply(j *jobs.Job) error {
@@ -250,6 +259,9 @@ func (e jobEdit) apply(j *jobs.Job) error {
 	}
 	if e.Render != nil {
 		j.Render = *e.Render
+	}
+	if e.Skipped != nil {
+		j.Skipped = *e.Skipped
 	}
 	switch j.Status {
 	case jobs.StatusDraft, jobs.StatusReady, jobs.StatusTrimmed, jobs.StatusDone, jobs.StatusFailed:
@@ -302,6 +314,11 @@ func (s *Server) patchJob(_ http.ResponseWriter, r *http.Request) (any, error) {
 		return nil, err
 	}
 	s.hub.publish("job", j)
+	if j.Backlog != "" {
+		if err := backlog.SaveFor(s.Store, j.Backlog); err != nil {
+			return nil, fmt.Errorf("saved, but couldn't update the backlog folder's %s: %w", backlog.FileName, err)
+		}
+	}
 	return j, nil
 }
 
@@ -356,6 +373,104 @@ func (s *Server) openDialog(_ http.ResponseWriter, r *http.Request) (any, error)
 	}
 	return map[string]string{"path": path}, nil
 }
+
+func (s *Server) folderDialog(_ http.ResponseWriter, r *http.Request) (any, error) {
+	if s.OpenFolder == nil {
+		return nil, httpError{http.StatusNotImplemented, "folder picking needs the desktop app"}
+	}
+	var req struct {
+		Title string `json:"title"`
+	}
+	if err := decode(r, &req); err != nil {
+		return nil, err
+	}
+	path, err := s.OpenFolder(req.Title)
+	if err != nil {
+		return nil, err
+	}
+	return map[string]string{"path": path}, nil
+}
+
+// backlogs rescans every opened backlog folder, so files added since
+// show up, and summarizes them.
+func (s *Server) backlogs(http.ResponseWriter, *http.Request) (any, error) {
+	set, err := s.Store.Settings()
+	if err != nil {
+		return nil, err
+	}
+	out := []backlog.Summary{}
+	for _, dir := range set.Backlogs {
+		sum, err := backlog.Sync(s.Store, dir)
+		if err != nil {
+			return nil, fmt.Errorf("%s: %w", dir, err)
+		}
+		out = append(out, sum)
+	}
+	s.publishAll()
+	return out, nil
+}
+
+func (s *Server) openBacklog(_ http.ResponseWriter, r *http.Request) (any, error) {
+	var req struct {
+		Dir string `json:"dir"`
+	}
+	if err := decode(r, &req); err != nil {
+		return nil, err
+	}
+	dir := filepath.Clean(req.Dir)
+	if info, err := os.Stat(dir); err != nil || !info.IsDir() {
+		return nil, badRequest("%s isn't a folder", req.Dir)
+	}
+	if _, err := s.Store.UpdateSettings(func(set *jobs.Settings) {
+		for _, d := range set.Backlogs {
+			if d == dir {
+				return
+			}
+		}
+		set.Backlogs = append(set.Backlogs, dir)
+	}); err != nil {
+		return nil, err
+	}
+	sum, err := backlog.Sync(s.Store, dir)
+	if err != nil {
+		return nil, err
+	}
+	s.publishAll()
+	return sum, nil
+}
+
+// forgetBacklog drops a backlog folder from the app. Its marks stay in
+// the folder's backlog.json, so opening it again restores them.
+func (s *Server) forgetBacklog(_ http.ResponseWriter, r *http.Request) (any, error) {
+	var req struct {
+		Dir string `json:"dir"`
+	}
+	if err := decode(r, &req); err != nil {
+		return nil, err
+	}
+	if _, err := s.Store.UpdateSettings(func(set *jobs.Settings) {
+		set.Backlogs = slices.DeleteFunc(set.Backlogs, func(d string) bool { return d == req.Dir })
+	}); err != nil {
+		return nil, err
+	}
+	all, err := s.Store.Jobs()
+	if err != nil {
+		return nil, err
+	}
+	for _, j := range all {
+		if j.Backlog == req.Dir {
+			s.Queue.Cancel(j.ID)
+			if err := s.Store.DeleteJob(j.ID); err != nil {
+				return nil, err
+			}
+			s.hub.publish("deleted", map[string]string{"id": j.ID})
+		}
+	}
+	return map[string]bool{"ok": true}, nil
+}
+
+// publishAll tells clients to reload the job list.
+func (s *Server) publishAll() { s.hub.publish("reload", map[string]bool{"jobs": true}) }
 
 func (s *Server) recordingOf(w http.ResponseWriter, r *http.Request) (string, bool) {
 	j, err := s.Store.Job(r.PathValue("id"))

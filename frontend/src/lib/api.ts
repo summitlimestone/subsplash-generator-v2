@@ -28,8 +28,19 @@ export interface Job {
   final_output?: string
   render: Render
   trimmed: string
+  backlog?: string
+  skipped?: boolean
+  updated: string
   status: Status
   error: string
+}
+
+export interface BacklogSummary {
+  dir: string
+  total: number
+  marked: number
+  skipped: number
+  missing: boolean
 }
 
 export interface Series {
@@ -77,11 +88,17 @@ export const api = {
   createJob: (edit: Partial<Job>) => call<Job>('POST', '/api/jobs', edit),
   updateJob: (id: string, edit: Partial<Job>) => call<Job>('PATCH', `/api/jobs/${id}`, edit),
   deleteJob: (id: string) => call('DELETE', `/api/jobs/${id}`),
+  editJobs: (ids: string[], edit: Partial<Job>) => call<Job[]>('POST', '/api/jobs/edit', { ids, edit }),
+  importFile: (path: string) => call<{ imported: number }>('POST', '/api/import', { path }),
   render: (ids: string[], steps: Step[]) => call('POST', '/api/render', { ids, steps }),
   cancel: (id: string) => call('POST', `/api/jobs/${id}/cancel`),
   probe: (id: string) => call<{ duration: number; fps: number }>('GET', `/api/jobs/${id}/probe`),
   openFile: (title: string, patterns: string[]) =>
     call<{ path: string }>('POST', '/api/dialog/open', { title, patterns }),
+  openFolder: (title: string) => call<{ path: string }>('POST', '/api/dialog/folder', { title }),
+  backlogs: () => call<BacklogSummary[]>('GET', '/api/backlogs'),
+  openBacklog: (dir: string) => call<BacklogSummary>('POST', '/api/backlogs', { dir }),
+  forgetBacklog: (dir: string) => call('POST', '/api/backlogs/forget', { dir }),
   async peaks(id: string): Promise<{ peaks: Uint8Array; complete: boolean }> {
     const res = await fetch(`/api/jobs/${id}/peaks`)
     if (!res.ok) throw new ApiError(`waveform: HTTP ${res.status}`)

@@ -43,6 +43,7 @@ export function connect() {
     const { id } = JSON.parse((e as MessageEvent).data)
     app.jobs = app.jobs.filter((j) => j.id !== id)
   })
+  es.addEventListener('reload', () => refresh().catch(() => {}))
   es.addEventListener('progress', (e) => {
     const p: Progress = JSON.parse((e as MessageEvent).data)
     app.progress[p.id] = p
@@ -51,4 +52,23 @@ export function connect() {
     const { recording } = JSON.parse((e as MessageEvent).data)
     peaksListeners.forEach((fn) => fn(recording))
   })
+}
+
+// isMarked reports whether a job has both marks.
+export const isMarked = (j: Job) => j.start != null && j.end != null
+
+// backlogOrder is the order a backlog's recordings are listed and marked in.
+export function backlogJobs(dir: string): Job[] {
+  return app.jobs
+    .filter((j) => j.backlog === dir)
+    .sort((a, b) => a.recording.toLowerCase().localeCompare(b.recording.toLowerCase()))
+}
+
+// nextToMark is the first unmarked, unskipped recording after `after`,
+// wrapping around, or undefined when everything is done.
+export function nextToMark(dir: string, after?: string): Job | undefined {
+  const list = backlogJobs(dir)
+  const i = after ? list.findIndex((j) => j.id === after) : -1
+  const ordered = [...list.slice(i + 1), ...list.slice(0, i + 1)]
+  return ordered.find((j) => !isMarked(j) && !j.skipped && j.id !== after)
 }

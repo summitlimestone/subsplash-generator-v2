@@ -9,12 +9,14 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"testing/fstest"
 	"time"
 
+	"github.com/summitlimestone/subsplash-generator-v2/internal/backlog"
 	"github.com/summitlimestone/subsplash-generator-v2/internal/jobs"
 	"github.com/summitlimestone/subsplash-generator-v2/internal/mediacache"
 	"github.com/summitlimestone/subsplash-generator-v2/internal/queue"
@@ -311,3 +313,92 @@ func (l *eventLog) waitFor(t *testing.T, match func(kind string, data map[string
 func (l *eventLog) saw(kind string) bool { return l.seen[kind] }
 
 type urlType = url.URL
+
+func TestBacklog(t *testing.T) {
+	e := setup(t)
+	dir := t.TempDir()
+	for _, name := range []string{"2026-09-27 09-58-01.mkv", "2026-10-04 09-57-37.mkv"} {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte("video"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if res, body := e.do(t, "POST", "/api/backlogs", map[string]any{"dir": filepath.Join(dir, "nope")}); res.StatusCode != http.StatusBadRequest {
+		t.Errorf("missing folder: %d %s", res.StatusCode, body)
+	}
+	res, body := e.do(t, "POST", "/api/backlogs", map[string]any{"dir": dir})
+	if res.StatusCode != http.StatusOK || !strings.Contains(string(body), `"total":2`) {
+		t.Fatalf("open: %d %s", res.StatusCode, body)
+	}
+	if _, body := e.do(t, "GET", "/api/backlogs", nil); !strings.Contains(string(body), `"marked":0`) {
+		t.Errorf("list: %s", body)
+	}
+	_, body = e.do(t, "GET", "/api/jobs", nil)
+	var all []jobs.Job
+	_ = json.Unmarshal(body, &all)
+	if len(all) != 2 || all[0].Backlog != dir {
+		t.Fatalf("jobs %+v", all)
+	}
+
+	// Marking one writes the folder's backlog.json.
+	if res, body := e.do(t, "PATCH", "/api/jobs/"+all[0].ID, map[string]any{"start": 60, "end": 1800, "series": "Fall"}); res.StatusCode != http.StatusOK {
+		t.Fatalf("mark: %d %s", res.StatusCode, body)
+	}
+	if res, _ := e.do(t, "PATCH", "/api/jobs/"+all[1].ID, map[string]any{"skipped": true}); res.StatusCode != http.StatusOK {
+		t.Fatal("skip failed")
+	}
+	raw, err := os.ReadFile(filepath.Join(dir, backlog.FileName))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s := string(raw); !strings.Contains(s, `"recording": "2026-09-27 09-58-01.mkv"`) || !strings.Contains(s, `"series": "Fall"`) || !strings.Contains(s, `"skip": true`) {
+		t.Errorf("backlog.json:\n%s", raw)
+	}
+	if _, body := e.do(t, "GET", "/api/backlogs", nil); !strings.Contains(string(body), `"marked":1,"skipped":1`) {
+		t.Errorf("after marking: %s", body)
+	}
+
+	// Forgetting removes its jobs but keeps the file; reopening restores the marks.
+	if res, _ := e.do(t, "POST", "/api/backlogs/forget", map[string]any{"dir": dir}); res.StatusCode != http.StatusOK {
+		t.Fatal("forget failed")
+	}
+	if _, body := e.do(t, "GET", "/api/jobs", nil); string(body) != "null\n" && string(body) != "[]\n" {
+		t.Errorf("jobs after forget: %s", body)
+	}
+	if _, body := e.do(t, "POST", "/api/backlogs", map[string]any{"dir": dir}); !strings.Contains(string(body), `"marked":1,"skipped":1`) {
+		t.Errorf("reopened: %s", body)
+	}
+}
+
+func TestEditSeveralAndImport(t *testing.T) {
+	e := setup(t)
+	var ids []string
+	for range 2 {
+		_, body := e.do(t, "POST", "/api/jobs", map[string]any{"recording": e.rec})
+		var j jobs.Job
+		_ = json.Unmarshal(body, &j)
+		ids = append(ids, j.ID)
+	}
+	if res, body := e.do(t, "POST", "/api/jobs/edit", map[string]any{"ids": ids, "edit": map[string]any{"series": "Advent"}}); res.StatusCode != http.StatusOK {
+		t.Fatalf("edit: %d %s", res.StatusCode, body)
+	}
+	for _, id := range ids {
+		_, body := e.do(t, "GET", "/api/jobs/"+id, nil)
+		if !strings.Contains(string(body), `"series":"Advent"`) {
+			t.Errorf("job %s: %s", id, body)
+		}
+	}
+	// A bad edit changes nothing.
+	if res, _ := e.do(t, "POST", "/api/jobs/edit", map[string]any{"ids": ids, "edit": map[string]any{"date": "nope"}}); res.StatusCode != http.StatusBadRequest {
+		t.Errorf("bad edit: %d", res.StatusCode)
+	}
+
+	file := filepath.Join(t.TempDir(), "bulk_states.json")
+	_ = os.WriteFile(file, []byte(`[{"recording_path": "a.mkv", "raw_begin_offset": 1, "raw_end_offset": 5},
+	  {"recording_path": "b.mkv", "raw_begin_offset": null, "raw_end_offset": null}]`), 0o644)
+	if res, body := e.do(t, "POST", "/api/import", map[string]any{"path": file}); res.StatusCode != http.StatusOK || !strings.Contains(string(body), `"imported":2`) {
+		t.Errorf("import: %d %s", res.StatusCode, body)
+	}
+	if res, _ := e.do(t, "POST", "/api/import", map[string]any{"path": file + ".missing"}); res.StatusCode != http.StatusBadRequest {
+		t.Errorf("missing file: %d", res.StatusCode)
+	}
+}

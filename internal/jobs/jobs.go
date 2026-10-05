@@ -62,14 +62,18 @@ type Job struct {
 	Stem   string `json:"stem"`
 	Series string `json:"series"`
 	// TrimOutput and FinalOutput override the paths derived from Stem.
-	TrimOutput  string    `json:"trim_output,omitempty"`
-	FinalOutput string    `json:"final_output,omitempty"`
-	Render      Render    `json:"render"`
-	Trimmed     string    `json:"trimmed"` // the trim's output once it succeeds
-	Status      Status    `json:"status"`
-	Error       string    `json:"error"`
-	Created     time.Time `json:"created"`
-	Updated     time.Time `json:"updated"`
+	TrimOutput  string `json:"trim_output,omitempty"`
+	FinalOutput string `json:"final_output,omitempty"`
+	Render      Render `json:"render"`
+	Trimmed     string `json:"trimmed"` // the trim's output once it succeeds
+	// Backlog is the backlog folder the recording belongs to, if any.
+	Backlog string `json:"backlog,omitempty"`
+	// Skipped marks a backlog recording with no sermon to cut.
+	Skipped bool      `json:"skipped,omitempty"`
+	Status  Status    `json:"status"`
+	Error   string    `json:"error"`
+	Created time.Time `json:"created"`
+	Updated time.Time `json:"updated"`
 }
 
 // New returns a draft job with a fresh ID and the default render settings.

@@ -122,6 +122,13 @@ func run() error {
 		}
 		return d.PromptForSingleSelection()
 	}
+	srv.OpenFolder = func(title string) (string, error) {
+		d := app.Dialog.OpenFile().SetTitle(title).CanChooseDirectories(true).CanChooseFiles(false)
+		if dir := startFolder(st); dir != "" {
+			d.SetDirectory(dir)
+		}
+		return d.PromptForSingleSelection()
+	}
 	app.Window.NewWithOptions(application.WebviewWindowOptions{
 		Title:            appName,
 		Width:            1400,
@@ -139,6 +146,18 @@ func run() error {
 	_ = httpSrv.Shutdown(shutdown)
 	log.Info("stopped")
 	return err
+}
+
+// startFolder is where the folder picker opens: next to the last backlog
+// opened, else the user's Videos folder.
+func startFolder(st *store.Store) string {
+	if set, err := st.Settings(); err == nil && len(set.Backlogs) > 0 {
+		return filepath.Dir(set.Backlogs[len(set.Backlogs)-1])
+	}
+	if home, err := os.UserHomeDir(); err == nil {
+		return filepath.Join(home, "Videos")
+	}
+	return ""
 }
 
 // devtoolsArgs opens the webview to Chrome DevTools on SG_DEVTOOLS_PORT,

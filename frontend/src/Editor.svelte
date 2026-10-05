@@ -43,6 +43,7 @@
   // Seeks are coalesced: while one is in flight, only the latest target is
   // kept, so scrubbing stays responsive on long recordings.
   let pendingSeek: number | null = null
+  let watchdog: ReturnType<typeof setTimeout> | null = null
   function seek(t: number) {
     t = Math.max(0, Math.min(duration || t, t))
     time = t
@@ -50,13 +51,26 @@
       pendingSeek = t
       return
     }
+    startSeek(t)
+  }
+  // A seek that never completes (seen when requests were starved) is
+  // reissued rather than leaving the player stuck on an old frame.
+  function startSeek(t: number) {
     video.currentTime = t
+    if (watchdog) clearTimeout(watchdog)
+    watchdog = setTimeout(() => {
+      watchdog = null
+      if (video.seeking) startSeek(pendingSeek ?? t)
+    }, 4000)
   }
   function seeked() {
     if (pendingSeek != null) {
       const t = pendingSeek
       pendingSeek = null
-      video.currentTime = t
+      startSeek(t)
+    } else if (watchdog) {
+      clearTimeout(watchdog)
+      watchdog = null
     }
   }
 

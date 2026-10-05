@@ -49,6 +49,20 @@
     if (duration > 0 && viewEnd === 0) viewEnd = duration
   })
 
+  // Stretch the waveform over this recording's own range of levels, so
+  // quiet speech and loud music differ visibly.
+  const range = $derived.by(() => {
+    if (!peaks || peaks.length < 10) return { lo: 0, hi: 255 }
+    const sample: number[] = []
+    const stride = Math.max(1, Math.floor(peaks.length / 5000))
+    for (let i = 0; i < peaks.length; i += stride) if (peaks[i] > 0) sample.push(peaks[i])
+    if (sample.length < 10) return { lo: 0, hi: 255 }
+    sample.sort((a, b) => a - b)
+    const lo = sample[Math.floor(sample.length * 0.05)]
+    const hi = sample[Math.floor(sample.length * 0.995)]
+    return hi - lo < 10 ? { lo: 0, hi: 255 } : { lo, hi }
+  })
+
   const span = () => Math.max(viewEnd - viewStart, 0.001)
   const toX = (t: number) => ((t - viewStart) / span()) * width
   const toT = (x: number) => Math.min(duration, Math.max(0, viewStart + (x / width) * span()))
@@ -62,7 +76,7 @@
 
   // Redraw whenever anything drawn changes.
   $effect(() => {
-    void [width, viewStart, viewEnd, time, start, end, peaks, hover, duration]
+    void [width, viewStart, viewEnd, time, start, end, peaks, range, hover, duration]
     draw()
   })
 
@@ -71,16 +85,37 @@
     return 7200
   }
 
+  // Thumbnails load at most two at a time, newest first, and ones scrolled
+  // out of view are dropped: the browser allows only six connections to
+  // the app, and the video needs them more.
+  const MAX_LOADING = 2
+  let loading = 0
+  let wanted: string[] = []
+
   function thumb(t: number): HTMLImageElement | null {
     const url = api.thumbURL(jobId, t, STRIP * 2)
-    let img = thumbs.get(url)
-    if (!img) {
-      img = new Image()
-      img.onload = () => draw()
-      img.src = url
+    const img = thumbs.get(url)
+    if (img) return img.complete && img.naturalWidth > 0 ? img : null
+    wanted.push(url)
+    return null
+  }
+
+  function pump() {
+    while (loading < MAX_LOADING && wanted.length) {
+      const url = wanted.shift()!
+      if (thumbs.has(url)) continue
+      const img = new Image()
       thumbs.set(url, img)
+      loading++
+      const done = () => {
+        loading--
+        if (img.naturalWidth === 0) thumbs.delete(url)
+        draw()
+      }
+      img.onload = done
+      img.onerror = done
+      img.src = url
     }
-    return img.complete && img.naturalWidth > 0 ? img : null
   }
 
   function draw() {
@@ -109,6 +144,7 @@
     }
 
     // Filmstrip: thumbnails at a fixed grid so zooming reuses them.
+    wanted = []
     const grid = niceStep((span() / width) * THUMB_W)
     for (let t = Math.floor(viewStart / grid) * grid; t < viewEnd; t += grid) {
       const img = thumb(Math.min(t + grid / 2, Math.max(0, duration - 0.5)))
@@ -123,6 +159,10 @@
       }
     }
 
+    // Nearest the playhead first.
+    wanted.sort((a, b) => Math.abs(urlTime(a) - time) - Math.abs(urlTime(b) - time))
+    pump()
+
     // Waveform.
     const mid = RULER + STRIP + WAVE / 2
     if (peaks && peaks.length) {
@@ -132,8 +172,9 @@
         const i1 = Math.max(i0 + 1, Math.floor(toT(x + 1) * peaksPerSecond))
         let p = 0
         for (let i = i0; i < i1 && i < peaks.length; i++) p = Math.max(p, peaks[i])
-        if (p > 0) {
-          const h = (p / 255) * (WAVE / 2 - 3)
+        const v = Math.min(1, Math.max(0, (p - range.lo) / (range.hi - range.lo)))
+        if (v > 0) {
+          const h = Math.max(0.5, v * (WAVE / 2 - 3))
           g.fillRect(x, mid - h, 1, h * 2)
         }
       }
@@ -186,6 +227,8 @@
     g.stroke()
     g.lineWidth = 1
   }
+
+  const urlTime = (url: string) => parseFloat(new URL(url, location.href).searchParams.get('t') ?? '0')
 
   function nearHandle(x: number): 'start' | 'end' | null {
     if (end != null && Math.abs(toX(end) - x) < 7) return 'end'

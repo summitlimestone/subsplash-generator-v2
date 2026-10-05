@@ -22,6 +22,12 @@ type logRecorder struct {
 	msgs []string
 }
 
+func (l *logRecorder) String() string {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return strings.Join(l.msgs, "\n")
+}
+
 func (l *logRecorder) contains(s string) bool {
 	l.mu.Lock()
 	defer l.mu.Unlock()
@@ -83,7 +89,7 @@ func TestTrimFastCopy(t *testing.T) {
 				t.Fatal(err)
 			}
 			if rec.contains("fast copy not used") {
-				t.Error("fell back to a full re-encode")
+				t.Errorf("fell back to a full re-encode:\n%s", rec)
 			}
 			checkTrim(t, r, out, 2.2, 10.6)
 			leftovers, _ := filepath.Glob(filepath.Join(filepath.Dir(out), ".*"))
@@ -102,7 +108,7 @@ func TestTrimFastCopyOnAKeyframe(t *testing.T) {
 		t.Fatal(err)
 	}
 	if rec.contains("fast copy not used") {
-		t.Error("fell back to a full re-encode")
+		t.Errorf("fell back to a full re-encode:\n%s", rec)
 	}
 	checkTrim(t, r, out, 3, 7.5)
 }

@@ -133,9 +133,10 @@ func (s *Store) DeleteSeries(name string) error {
 	return err
 }
 
-// Jobs returns every job, oldest first.
+// Jobs returns every job, oldest first. Ties (Windows clocks are coarse)
+// keep the order the jobs were first saved in.
 func (s *Store) Jobs() ([]*jobs.Job, error) {
-	rows, err := s.db.Query(`SELECT data FROM jobs ORDER BY created, id`)
+	rows, err := s.db.Query(`SELECT data FROM jobs ORDER BY created, rowid`)
 	if err != nil {
 		return nil, err
 	}

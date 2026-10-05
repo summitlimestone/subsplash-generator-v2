@@ -113,7 +113,7 @@ func run() error {
 		Assets: application.AssetOptions{Handler: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			http.Error(w, "loading", http.StatusNotFound)
 		})},
-		Windows: application.WindowsOptions{WebviewUserDataPath: filepath.Join(dataDir, "webview")},
+		Windows: application.WindowsOptions{WebviewUserDataPath: filepath.Join(dataDir, "webview"), AdditionalBrowserArgs: devtoolsArgs()},
 	})
 	srv.OpenFile = func(title string, patterns []string) (string, error) {
 		d := app.Dialog.OpenFile().SetTitle(title).CanChooseFiles(true)
@@ -139,6 +139,15 @@ func run() error {
 	_ = httpSrv.Shutdown(shutdown)
 	log.Info("stopped")
 	return err
+}
+
+// devtoolsArgs opens the webview to Chrome DevTools on SG_DEVTOOLS_PORT,
+// for development only.
+func devtoolsArgs() []string {
+	if port := os.Getenv("SG_DEVTOOLS_PORT"); port != "" {
+		return []string{"--remote-debugging-port=" + port, "--remote-allow-origins=*"}
+	}
+	return nil
 }
 
 func newToken() string {

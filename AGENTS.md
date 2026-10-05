@@ -13,7 +13,7 @@
 # Project notes
 
 - Design doc: https://claude.ai/code/artifact/c7546fe1-f499-4384-9560-c54673c82545
-- ffmpeg/ffprobe are bundled with the app and are the only copies it runs.
+- ffmpeg/ffprobe (BtbN n8.1 GPL build) are bundled with the app and are the only copies it runs.
   Never add a PATH lookup. `SG_FFMPEG_DIR` overrides the folder for
   development and tests only.
 - Errors are returned, never handled by exiting the process.

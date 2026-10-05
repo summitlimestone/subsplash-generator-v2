@@ -144,12 +144,13 @@ func run() error {
 		}
 		return d.PromptForSingleSelection()
 	}
+	// The minimum size is small enough to sit beside OBS showing only Live.
 	app.Window.NewWithOptions(application.WebviewWindowOptions{
 		Title:            appName,
 		Width:            1400,
 		Height:           900,
-		MinWidth:         900,
-		MinHeight:        600,
+		MinWidth:         580,
+		MinHeight:        480,
 		BackgroundColour: application.NewRGB(0x20, 0x1e, 0x1e),
 		URL:              fmt.Sprintf("http://127.0.0.1:%d/?token=%s", set.API.Port, set.API.Token),
 	})

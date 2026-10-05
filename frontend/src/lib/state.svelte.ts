@@ -39,7 +39,13 @@ export function connect() {
     // Catch up on anything missed while disconnected.
     refresh().catch(() => {})
   }
-  es.onerror = () => (app.connected = false)
+  es.onerror = () => {
+    app.connected = false
+    // The browser retries a dropped connection by itself, but gives up on
+    // an error response (such as while another copy of the app with a
+    // different token held the port), so start over after a pause.
+    if (es.readyState === EventSource.CLOSED) setTimeout(connect, 4000)
+  }
   es.addEventListener('job', (e) => upsert(JSON.parse((e as MessageEvent).data)))
   es.addEventListener('deleted', (e) => {
     const { id } = JSON.parse((e as MessageEvent).data)

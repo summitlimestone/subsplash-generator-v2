@@ -90,6 +90,10 @@
     if (playing) requestAnimationFrame(tick)
   }
 
+  function setRate(r: number) {
+    rate = r
+    video.playbackRate = r
+  }
   function play() {
     // At the end mark, Play starts over from the start mark.
     if (end != null && time >= end - 0.05) seek(start ?? 0)
@@ -206,11 +210,12 @@
     const k = e.key
     const handled = true
     if (k === ' ') toggle()
-    else if (k === 'k' || k === 'K') video.pause()
+    else if (k === 'k' || k === 'K') toggle()
+    // L plays, then doubles the speed up to 8x; J halves it back to 1x.
     else if (k === 'l' || k === 'L') {
-      rate = video.paused ? 1 : Math.min(rate * 2, 8)
+      if (!video.paused) setRate(Math.min(rate * 2, 8))
       play()
-    } else if (k === 'j' || k === 'J') jump(-10)
+    } else if (k === 'j' || k === 'J') setRate(Math.max(rate / 2, 1))
     else if (k === 'ArrowLeft') e.shiftKey ? jump(-1) : step(-1)
     else if (k === 'ArrowRight') e.shiftKey ? jump(1) : step(1)
     else if (k === 'i' || k === 'I') setStart()
@@ -274,7 +279,7 @@
       onloadedmetadata={loaded}
       onseeked={seeked}
       onplay={() => ((playing = true), requestAnimationFrame(tick))}
-      onpause={() => ((playing = false), (time = clamp(video.currentTime)))}
+      onpause={() => ((playing = false), (time = clamp(video.currentTime)), setRate(1))}
       onclick={toggle}
     ></video>
   </div>
@@ -284,7 +289,7 @@
       <button class="icon" onclick={goStart} title="Go to the start mark (Home)" aria-label="Go to start">
         <svg viewBox="0 0 16 16"><rect x="2.5" y="3" width="2" height="10" rx="0.8" /><path d="M13 3.6v8.8c0 .5-.6.8-1 .5L6 8.5a.6.6 0 0 1 0-1l6-4.4c.4-.3 1 0 1 .5z" /></svg>
       </button>
-      <button class="icon" onclick={() => jump(-10)} title="Back 10 s (J)" aria-label="Back 10 seconds">
+      <button class="icon" onclick={() => jump(-10)} title="Back 10 s" aria-label="Back 10 seconds">
         <svg viewBox="0 0 16 16"><path d="M8 3.8v8.4c0 .5-.6.8-1 .5L1.6 8.5a.6.6 0 0 1 0-1L7 3.3c.4-.3 1 0 1 .5zM14.5 3.8v8.4c0 .5-.6.8-1 .5L8.1 8.5a.6.6 0 0 1 0-1l5.4-4.2c.4-.3 1 0 1 .5z" /></svg>
       </button>
       <button class="icon" onclick={() => step(-1)} title="Back one frame (&larr;)" aria-label="Back one frame">
@@ -342,7 +347,7 @@
     {#if !peaksDone}
       <span>Loading waveform{duration > 0 && peaks ? ` ${Math.min(99, Math.floor((peaks.length / (duration * (app.info?.peaksPerSecond ?? 20))) * 100))}%` : ''}&hellip;</span>
     {/if}
-    <span class="keys">Space play &middot; &larr;&rarr; frame &middot; Shift+&larr;&rarr; 1 s &middot; J/K/L &middot; I/O set start/end &middot; Home/End go to marks &middot; wheel zoom &middot; Enter save</span>
+    <span class="keys">Space or K play/pause &middot; L faster &middot; J slower &middot; &larr;&rarr; frame &middot; Shift+&larr;&rarr; 1 s &middot; I/O set start/end &middot; Home/End go to marks &middot; wheel zoom &middot; Enter save</span>
   </footer>
 </div>
 

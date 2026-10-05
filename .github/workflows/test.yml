@@ -19,7 +19,7 @@ jobs:
         run: |
           curl -sSL https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-n8.1-latest-linux64-gpl-8.1.tar.xz | tar -xJ
           echo "SG_FFMPEG_DIR=$PWD/ffmpeg-n8.1-latest-linux64-gpl-8.1/bin" >> "$GITHUB_ENV"
-      - run: test -z "$(gofmt -l .)"
+      - run: out=$(gofmt -l .); echo "$out"; test -z "$out"
       # The desktop app is Windows-only; on Linux, Wails would need GTK headers.
       - run: go vet $(go list ./... | grep -v /cmd/app)
       - run: go test -race $(go list ./... | grep -v /cmd/app)

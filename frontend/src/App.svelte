@@ -3,9 +3,14 @@
   import Backlog from './Backlog.svelte'
   import Editor from './Editor.svelte'
   import Jobs from './Jobs.svelte'
+  import Live from './Live.svelte'
+  import Series from './Series.svelte'
+  import Settings from './Settings.svelte'
   import { app, connect, nextToMark, refresh } from './lib/state.svelte'
 
-  let tab = $state<'jobs' | 'backlog'>('jobs')
+  type Tab = 'live' | 'jobs' | 'backlog' | 'series' | 'settings'
+  const tabs: [Tab, string][] = [['live', 'Live'], ['jobs', 'Jobs'], ['backlog', 'Bulk edit'], ['series', 'Series'], ['settings', 'Settings']]
+  let tab = $state<Tab>('live')
   let backlogDir = $state('')
   let editing = $state<string | null>(null)
   let error = $state('')
@@ -38,8 +43,9 @@
   {#if !job}
     <nav>
       <span class="brand">Subsplash Generator</span>
-      <button class="tab" class:active={tab === 'jobs'} onclick={() => (tab = 'jobs')}>Jobs</button>
-      <button class="tab" class:active={tab === 'backlog'} onclick={() => (tab = 'backlog')}>Bulk edit</button>
+      {#each tabs as [id, label]}
+        <button class="tab" class:active={tab === id} onclick={() => ((tab = id), (notice = ''))}>{label}</button>
+      {/each}
       <span class="spacer"></span>
       {#if !app.connected}<span class="warn">Reconnecting&hellip;</span>{/if}
     </nav>
@@ -50,10 +56,16 @@
       {#key job.id}<Editor {job} onclose={() => (editing = null)} onnext={next} />{/key}
     {:else}
       {#if notice}<p class="notice">{notice}</p>{/if}
-      {#if tab === 'jobs'}
+      {#if tab === 'live'}
+        <Live onedit={open} />
+      {:else if tab === 'jobs'}
         <Jobs onedit={open} />
-      {:else}
+      {:else if tab === 'backlog'}
         <Backlog onedit={open} bind:current={backlogDir} />
+      {:else if tab === 'series'}
+        <Series />
+      {:else}
+        <Settings />
       {/if}
     {/if}
   </main>

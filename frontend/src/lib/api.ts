@@ -46,15 +46,68 @@ export interface BacklogSummary {
 export interface Series {
   name: string
   intro: string
+  intro_duration: number
   outro: string
+  outro_duration: number
   transition: string
   transition_duration: number
   hidden: boolean
 }
 
+export interface EncoderInfo {
+  name: string
+  presets: string[]
+  defaultPreset: string
+}
+
 export interface Info {
   peaksPerSecond: number
   canOpenFiles: boolean
+  encoders: EncoderInfo[]
+}
+
+export interface Slide {
+  uid: string
+  text: string
+  at: string
+}
+
+export interface LiveState {
+  obsConfigured: boolean
+  obsConnected: boolean
+  obsError: string
+  recording: boolean
+  elapsed: number
+  ppConfigured: boolean
+  ppConnected: boolean
+  ppError: string
+  slides: Slide[] | null
+  watching: boolean
+  phase: 'idle' | 'waiting' | 'recording' | 'stopped'
+  jobId: string
+  series: string
+  notice: string
+}
+
+export interface SlideMatch {
+  uid?: string
+  text?: string
+  match?: string
+  case_sensitive?: boolean
+}
+
+export interface Settings {
+  trimmed_dir: string
+  final_dir: string
+  pad_start: number
+  pad_end: number
+  render: Render
+  backlogs: string[] | null
+  obs: { host: string; port: number; password: string }
+  propresenter: { host: string; port: number; password: string; begin_slide: SlideMatch; end_slide: SlideMatch }
+  api: { enabled: boolean; host: string; port: number; token: string }
+  hasOBSPassword?: boolean
+  hasPPPassword?: boolean
 }
 
 export interface Progress {
@@ -92,6 +145,22 @@ export const api = {
   importFile: (path: string) => call<{ imported: number }>('POST', '/api/import', { path }),
   render: (ids: string[], steps: Step[]) => call('POST', '/api/render', { ids, steps }),
   cancel: (id: string) => call('POST', `/api/jobs/${id}/cancel`),
+  live: () => call<LiveState>('GET', '/api/live'),
+  liveStart: (series: string) => call<LiveState>('POST', '/api/live/start', { series }),
+  liveStop: () => call<LiveState>('POST', '/api/live/stop'),
+  liveMark: (which: 'start' | 'end') => call<LiveState>('POST', '/api/live/mark', { which }),
+  liveNudge: (which: 'start' | 'end', seconds: number) => call<LiveState>('POST', '/api/live/nudge', { which, seconds }),
+  liveSeries: (name: string) => call<LiveState>('PUT', '/api/live/series', { name }),
+  settings: () => call<Settings>('GET', '/api/settings'),
+  saveSettings: (s: Settings & { clearOBSPassword?: boolean; clearPPPassword?: boolean }) =>
+    call<{ settings: Settings; restartNeeded: boolean }>('PUT', '/api/settings', s),
+  regenerateToken: () => call<{ restartNeeded: boolean }>('POST', '/api/settings/token'),
+  dockURLs: () => call<{ urls: string[] }>('GET', '/api/settings/dock'),
+  createSeries: (s: Series) => call<Series>('POST', '/api/series', s),
+  updateSeries: (name: string, s: Series) => call<Series>('PUT', `/api/series/${encodeURIComponent(name)}`, s),
+  deleteSeries: (name: string, force = false) =>
+    call('DELETE', `/api/series/${encodeURIComponent(name)}${force ? '?force=1' : ''}`),
+  importV1: () => call<{ folder: string; settings: boolean; series: number }>('POST', '/api/import/v1'),
   probe: (id: string) => call<{ duration: number; fps: number }>('GET', `/api/jobs/${id}/probe`),
   openFile: (title: string, patterns: string[]) =>
     call<{ path: string }>('POST', '/api/dialog/open', { title, patterns }),

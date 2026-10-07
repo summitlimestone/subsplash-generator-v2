@@ -7,3 +7,8 @@
 # Built UI; only the placeholder that keeps go:embed compiling is committed.
 /frontend/dist/*
 !/frontend/dist/.gitkeep
+# Windows resources made by go-winres at build time.
+*.syso
+# The WebView2 bootstrapper, downloaded when building the installer.
+/packaging/MicrosoftEdgeWebview2Setup.exe
+/ffmpeg-bin/

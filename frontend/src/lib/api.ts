@@ -64,6 +64,10 @@ export interface Info {
   peaksPerSecond: number
   canOpenFiles: boolean
   encoders: EncoderInfo[]
+  version: string
+  hasNotices: boolean
+  v1Found: boolean
+  welcomed: boolean
 }
 
 export interface Slide {
@@ -103,6 +107,7 @@ export interface Settings {
   pad_end: number
   render: Render
   backlogs: string[] | null
+  welcomed?: boolean
   obs: { host: string; port: number; password: string }
   propresenter: { host: string; port: number; password: string; begin_slide: SlideMatch; end_slide: SlideMatch }
   api: { enabled: boolean; host: string; port: number; token: string }
@@ -159,6 +164,12 @@ export const api = {
   updateSeries: (name: string, s: Series) => call<Series>('PUT', `/api/series/${encodeURIComponent(name)}`, s),
   deleteSeries: (name: string, force = false) =>
     call('DELETE', `/api/series/${encodeURIComponent(name)}${force ? '?force=1' : ''}`),
+  welcomed: () => call('POST', '/api/welcome'),
+  notices: async () => {
+    const res = await fetch('/api/notices')
+    if (!res.ok) throw new Error('No license notices in this build')
+    return res.text()
+  },
   importV1: () => call<{ folder: string; settings: boolean; series: number }>('POST', '/api/import/v1'),
   probe: (id: string) => call<{ duration: number; fps: number }>('GET', `/api/jobs/${id}/probe`),
   openFile: (title: string, patterns: string[]) =>

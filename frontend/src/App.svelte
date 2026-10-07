@@ -6,6 +6,7 @@
   import Live from './Live.svelte'
   import Series from './Series.svelte'
   import Settings from './Settings.svelte'
+  import Welcome from './Welcome.svelte'
   import { app, connect, nextToMark, refresh } from './lib/state.svelte'
 
   type Tab = 'live' | 'jobs' | 'backlog' | 'series' | 'settings'
@@ -15,6 +16,7 @@
   let editing = $state<string | null>(null)
   let error = $state('')
   let notice = $state('')
+  let welcomed = $state(false)
   const job = $derived(editing ? app.jobs.find((j) => j.id === editing) : undefined)
 
   // After a backlog recording is saved or skipped, go straight on to the next.
@@ -38,6 +40,10 @@
     connect()
   })
 </script>
+
+{#if app.info && !app.info.welcomed && !welcomed}
+  <Welcome ondone={() => ((welcomed = true), (tab = 'live'))} />
+{/if}
 
 <div class="shell">
   {#if !job}

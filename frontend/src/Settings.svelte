@@ -72,6 +72,11 @@
     await load()
   }
 
+  let notices = $state('')
+  async function showNotices() {
+    notices = notices ? '' : await api.notices().catch((e) => (e as Error).message)
+  }
+
   async function importV1() {
     error = notice = ''
     try {
@@ -216,7 +221,17 @@
         <label class="inline"><input type="checkbox" checked={form.api.host === '0.0.0.0'} onchange={(e) => form && (form.api.host = (e.target as HTMLInputElement).checked ? '0.0.0.0' : '127.0.0.1')} /> Allow other computers on the network</label>
         <label>Port <input type="number" bind:value={form.api.port} /></label>
       </div>
-      <button type="button" class="small" onclick={regenerate}>Make a new token</button>
+      <div><button type="button" class="small" onclick={regenerate}>Make a new token</button></div>
+    </section>
+
+    <section>
+      <h3>About</h3>
+      <p class="small">Subsplash Generator {app.info?.version}. MIT licensed.</p>
+      <p class="muted small">It runs ffmpeg, a separate program under the GNU GPL, to render videos. ffmpeg's source and the licenses of everything included are in the notices.</p>
+      {#if app.info?.hasNotices}
+        <div><button type="button" class="small" onclick={showNotices}>{notices ? 'Hide' : 'Show'} license notices</button></div>
+        {#if notices}<pre class="notices">{notices}</pre>{/if}
+      {/if}
     </section>
   </form>
 {:else if error}
@@ -244,5 +259,7 @@
   .slide-row { display: flex; gap: 8px; align-items: center; }
   .slide-row .text { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .small { font-size: 12px; }
+  p { margin: 0; }
+  .notices { max-height: 360px; overflow: auto; font-size: 11px; white-space: pre-wrap; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 8px; margin: 0; }
   .notice { margin: 0; padding: 8px 12px; background: #2f3a24; border: 1px solid var(--accent); border-radius: 6px; }
 </style>

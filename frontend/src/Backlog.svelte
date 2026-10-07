@@ -123,7 +123,7 @@
       </div>
 
       <table>
-        <thead><tr><th class="check"><input type="checkbox" checked={list.length > 0 && selected.size === list.length} onchange={toggleAll} /></th><th></th><th>Recording</th><th>Date</th><th>Series</th><th>Sermon</th></tr></thead>
+        <thead><tr><th class="check"><input type="checkbox" checked={list.length > 0 && selected.size === list.length} onchange={toggleAll} /></th><th></th><th>Recording</th><th>Date</th><th>Series</th><th class="sermon">Sermon</th></tr></thead>
         <tbody>
           {#each list as j (j.id)}
             <tr onclick={() => onedit(j.id)} class:done={isMarked(j)} class:skipped={j.skipped} class:selected={selected.has(j.id)}>
@@ -131,10 +131,10 @@
                 <input type="checkbox" checked={selected.has(j.id)} onchange={() => (selected.has(j.id) ? selected.delete(j.id) : selected.add(j.id))} />
               </td>
               <td class="tick">{j.skipped ? '–' : isMarked(j) ? '✓' : ''}</td>
-              <td>{rel(j.recording)}</td>
-              <td>{j.date}</td>
-              <td>{j.series}</td>
-              <td class="mono">
+              <td><div class="clip" title={j.recording}>{rel(j.recording)}</div></td>
+              <td class="nowrap">{j.date}</td>
+              <td class="nowrap">{j.series}</td>
+              <td class="mono sermon">
                 {#if j.skipped}<span class="muted">skipped</span>
                 {:else if isMarked(j)}{formatTime(j.start, false)} – {formatTime(j.end, false)}{/if}
               </td>
@@ -156,7 +156,8 @@
   .intro { max-width: 520px; margin: 60px auto; text-align: center; display: flex; flex-direction: column; gap: 12px; align-items: center; }
   .intro h2 { margin: 0; }
   .toolbar { display: flex; gap: 8px; align-items: center; }
-  .toolbar select { max-width: 520px; }
+  .toolbar select { flex: 0 1 520px; min-width: 0; }
+  .toolbar button, .big { white-space: nowrap; }
   .spacer { flex: 1; }
   .big { font-size: 16px; padding: 8px 20px; }
   .progress { display: flex; align-items: center; gap: 16px; padding: 12px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px; }
@@ -171,4 +172,8 @@
   tr.selected td { background: #2a2a24; }
   .tick { width: 24px; color: var(--accent); font-weight: 700; }
   tr.skipped td { color: var(--muted); }
+  /* Long recording paths are cut short so the table never scrolls sideways. */
+  .clip { max-width: 40vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .nowrap, .mono { white-space: nowrap; }
+  @media (max-width: 860px) { .sermon { display: none; } }
 </style>

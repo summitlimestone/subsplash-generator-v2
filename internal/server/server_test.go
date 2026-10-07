@@ -441,6 +441,36 @@ func TestSettingsKeepSecrets(t *testing.T) {
 	}
 }
 
+func TestWelcomeAndNotices(t *testing.T) {
+	e := setup(t)
+	notices := filepath.Join(t.TempDir(), "THIRD_PARTY_NOTICES.txt")
+	_ = os.WriteFile(notices, []byte("ffmpeg is GPL"), 0o644)
+	e.srv.Notices, e.srv.Version = notices, "v9.9.9"
+
+	var info map[string]any
+	_, body := e.do(t, "GET", "/api/info", nil)
+	_ = json.Unmarshal(body, &info)
+	if info["version"] != "v9.9.9" || info["hasNotices"] != true || info["welcomed"] != false {
+		t.Errorf("info %s", body)
+	}
+	if _, body := e.do(t, "GET", "/api/notices", nil); string(body) != "ffmpeg is GPL" {
+		t.Errorf("notices %q", body)
+	}
+
+	if res, body := e.do(t, "POST", "/api/welcome", nil); res.StatusCode != http.StatusOK {
+		t.Fatalf("welcome: %d %s", res.StatusCode, body)
+	}
+	// Saving a settings form that predates the welcome doesn't undo it.
+	var form map[string]any
+	_, body = e.do(t, "GET", "/api/settings", nil)
+	_ = json.Unmarshal(body, &form)
+	form["welcomed"] = false
+	e.do(t, "PUT", "/api/settings", form)
+	if set, _ := e.srv.Store.Settings(); !set.Welcomed {
+		t.Error("welcome undone by a settings save")
+	}
+}
+
 func TestSeriesManagement(t *testing.T) {
 	e := setup(t)
 	fall := map[string]any{"name": "Fall", "intro": "i.png", "outro": "o.mp4", "transition_duration": 1}

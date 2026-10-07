@@ -141,9 +141,9 @@
       <thead>
         <tr>
           <th><input type="checkbox" checked={selected.size === shown.length} onchange={toggleAll} /></th>
-          <th>Video</th>
+          <th class="clip">Video</th>
           <th>Series</th>
-          <th>Sermon</th>
+          <th class="sermon">Sermon</th>
           <th>Status</th>
           <th></th>
         </tr>
@@ -153,12 +153,12 @@
           {@const p = app.progress[j.id]}
           <tr class:selected={selected.has(j.id)}>
             <td><input type="checkbox" checked={selected.has(j.id)} onchange={() => (selected.has(j.id) ? selected.delete(j.id) : selected.add(j.id))} /></td>
-            <td>
-              <div>{name(j)}</div>
-              <div class="muted small" title={j.recording}>{file(j.recording)}</div>
+            <td class="clip">
+              <div class="name">{name(j)}</div>
+              <div class="muted small file" title={j.recording}>{file(j.recording)}</div>
             </td>
             <td>{j.series || '—'}</td>
-            <td class="mono">
+            <td class="mono sermon">
               {#if j.start != null && j.end != null}
                 {formatTime(j.start, false)} – {formatTime(j.end, false)}
                 <div class="muted small">{formatTime(j.end - j.start, false)} long</div>
@@ -222,8 +222,18 @@
   tr.selected td { background: #2a2a24; }
   .small { font-size: 12px; }
   .actions { white-space: nowrap; text-align: right; }
+  /* Narrow windows: the marks are in the editor anyway. */
+  @media (max-width: 860px) {
+    .sermon { display: none; }
+    .actions { white-space: normal; }
+    .actions button { margin: 0 0 4px 4px; }
+  }
   .actions button { margin-left: 4px; }
-  .status { display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 12px; background: var(--surface); }
+  .clip .name { white-space: nowrap; }
+  .clip .file { max-width: 25vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .mono { white-space: nowrap; }
+  .error.small { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .status { white-space: nowrap; display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 12px; background: var(--surface); }
   .s-ready { background: #2f3a24; }
   .s-queued, .s-trimming, .s-stitching { background: #22384d; color: #bcd6ef; }
   .s-trimmed { background: #4a3c15; color: #f0d78a; }

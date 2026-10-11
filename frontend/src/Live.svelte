@@ -24,14 +24,14 @@
     if (!live.obsConnected) return { text: 'Connecting to OBS…', tone: 'warn' }
     if (job && rendering) return { text: job.status === 'stitching' ? 'Stitching…' : job.status === 'queued' ? 'Queued…' : 'Trimming…', tone: 'info' }
     if (live.phase === 'recording') return { text: `Recording ${formatTime(live.elapsed, false)}`, tone: 'rec' }
-    if (live.phase === 'waiting') return { text: live.recording ? 'Recording' : 'Waiting for OBS to record', tone: 'info' }
+    if (live.phase === 'waiting') return { text: 'Waiting for OBS to record', tone: 'info' }
     if (live.phase === 'stopped') {
       if (job?.status === 'done') return { text: 'Done', tone: 'ok' }
       if (job?.status === 'trimmed') return { text: 'Trimmed: check it, then stitch', tone: 'ok' }
       if (job?.status === 'failed') return { text: 'Failed', tone: 'bad' }
       return { text: 'Recording finished', tone: 'ok' }
     }
-    return { text: live.recording ? 'OBS is recording (not watching)' : 'Not watching', tone: 'muted' }
+    return { text: 'Waiting for OBS to record', tone: 'info' }
   })
 
   async function act(fn: () => Promise<unknown>) {
@@ -70,12 +70,6 @@
     <option value="">(choose a series)</option>
     {#each seriesNames as name}<option value={name}>{name}</option>{/each}
   </select>
-
-  {#if live?.watching}
-    <button class="wide" disabled={busy} onclick={() => act(() => api.liveStop())}>Stop watching</button>
-  {:else}
-    <button class="accent wide" disabled={busy || !live?.obsConfigured} onclick={() => act(() => api.liveStart(live?.series ?? ''))}>Start watching</button>
-  {/if}
 
   <div class="row">
     {#each ['start', 'end'] as const as which}

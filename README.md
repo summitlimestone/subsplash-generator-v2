@@ -70,8 +70,9 @@ network**, save, and restart the app.
 
 On the **Live** tab (or the OBS dock):
 
-1. Choose the series and click **Start watching**.
-2. Start recording in OBS as usual.
+1. Check the series. It starts as the last service's series.
+2. Start recording in OBS as usual. The app follows every recording on its
+   own while it's connected to OBS.
 3. The sermon's start and end are marked when the chosen slides come up,
    or when you click **Mark start** and **Mark end**. Clicking a Mark
    button again moves that mark to now.

@@ -1,7 +1,8 @@
 <script lang="ts">
   // The editor's timeline: a time ruler, filmstrip and audio waveform, with
-  // draggable start/end handles and the playhead. The wheel zooms around
-  // the cursor; Shift+wheel pans.
+  // draggable start/end handles and the playhead. The handles are dragged
+  // by their lines or labels below the ruler; the ruler only moves the
+  // playhead. The wheel zooms around the cursor; Shift+wheel pans.
   import { onMount } from 'svelte'
   import { api } from './lib/api'
   import { formatTime } from './lib/time'
@@ -14,6 +15,7 @@
     end,
     peaks,
     peaksPerSecond,
+    fade = 0,
     onseek,
     onstart,
     onend,
@@ -25,6 +27,9 @@
     end: number | null
     peaks: Uint8Array | null
     peaksPerSecond: number
+    // fade is the series' transition length: the stitched video crossfades
+    // over its first and last this-many seconds.
+    fade?: number
     onseek: (t: number, scrubbing: boolean) => void
     onstart: (t: number) => void
     onend: (t: number) => void
@@ -43,6 +48,8 @@
   let viewEnd = $state(0)
   let drag: 'start' | 'end' | 'scrub' | null = null
   let hover = $state<number | null>(null)
+  // Where each handle's label was last drawn, for grabbing it.
+  const labels: { start?: { x: number; w: number }; end?: { x: number; w: number } } = {}
   const thumbs = new Map<string, HTMLImageElement>()
 
   $effect(() => {
@@ -76,7 +83,7 @@
 
   // Redraw whenever anything drawn changes.
   $effect(() => {
-    void [width, viewStart, viewEnd, time, start, end, peaks, range, hover, duration]
+    void [width, viewStart, viewEnd, time, start, end, peaks, range, hover, duration, fade]
     draw()
   })
 
@@ -189,6 +196,13 @@
     g.fillStyle = 'rgba(0,0,0,0.55)'
     if (start != null) g.fillRect(0, RULER, Math.max(0, toX(start)), HEIGHT - RULER)
     if (end != null) g.fillRect(toX(end), RULER, Math.max(0, width - toX(end)), HEIGHT - RULER)
+    if (fade > 0 && start != null && end != null) {
+      const f = Math.min(fade, (end - start) / 2)
+      g.fillStyle = 'rgba(200,200,200,0.18)'
+      g.fillRect(toX(start), RULER, toX(start + f) - toX(start), HEIGHT - RULER)
+      g.fillRect(toX(end - f), RULER, toX(end) - toX(end - f), HEIGHT - RULER)
+    }
+    labels.start = labels.end = undefined
     for (const [t, color, label] of [
       [start, '#78a22f', 'START'],
       [end, '#d9534f', 'END'],
@@ -209,6 +223,7 @@
       let lx = label === 'START' ? x - tw : x
       if (lx < 0 || lx + tw > width) lx = label === 'START' ? x : x - tw
       g.fillRect(lx, RULER, tw, 14)
+      labels[label === 'START' ? 'start' : 'end'] = { x: lx, w: tw }
       g.fillStyle = '#111'
       g.fillText(label, lx + 4, RULER + 11)
     }
@@ -234,27 +249,43 @@
 
   const urlTime = (url: string) => parseFloat(new URL(url, location.href).searchParams.get('t') ?? '0')
 
-  function nearHandle(x: number): 'start' | 'end' | null {
+  // nearHandle is the handle under the pointer: its label, or its line
+  // below the ruler. In the ruler, only the playhead moves.
+  function nearHandle(x: number, y: number): 'start' | 'end' | null {
+    if (y < RULER) return null
+    for (const which of ['end', 'start'] as const) {
+      const l = labels[which]
+      if (l && y < RULER + 14 && x >= l.x && x <= l.x + l.w) return which
+    }
     if (end != null && Math.abs(toX(end) - x) < 7) return 'end'
     if (start != null && Math.abs(toX(start) - x) < 7) return 'start'
     return null
   }
 
-  function localX(e: PointerEvent | WheelEvent) {
-    return e.clientX - canvas.getBoundingClientRect().left
+  function local(e: PointerEvent | WheelEvent) {
+    const r = canvas.getBoundingClientRect()
+    return { x: e.clientX - r.left, y: e.clientY - r.top }
   }
+  const localX = (e: PointerEvent | WheelEvent) => local(e).x
+
+  // grab is how far the pointer sat from the handle when its drag began,
+  // so grabbing a label doesn't make the handle jump to the pointer.
+  let grab = 0
 
   function down(e: PointerEvent) {
     canvas.setPointerCapture(e.pointerId)
-    const x = localX(e)
-    drag = nearHandle(x) ?? 'scrub'
+    const { x, y } = local(e)
+    drag = nearHandle(x, y) ?? 'scrub'
+    const at = drag === 'start' ? start : drag === 'end' ? end : null
+    grab = at != null ? x - toX(at) : 0
     move(e)
   }
 
   function move(e: PointerEvent) {
-    const x = localX(e)
-    hover = toT(x)
-    canvas.style.cursor = drag === 'start' || drag === 'end' || nearHandle(x) ? 'ew-resize' : 'pointer'
+    const { x: px, y } = local(e)
+    const x = px - (drag === 'start' || drag === 'end' ? grab : 0)
+    hover = toT(px)
+    canvas.style.cursor = drag === 'start' || drag === 'end' || (!drag && nearHandle(px, y)) ? 'ew-resize' : 'pointer'
     if (!drag) return
     const t = toT(x)
     if (drag === 'start') onstart(end != null ? Math.min(t, end - 0.05) : t)

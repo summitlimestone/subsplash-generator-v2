@@ -86,8 +86,7 @@ export interface LiveState {
   ppConnected: boolean
   ppError: string
   slides: Slide[] | null
-  watching: boolean
-  phase: 'idle' | 'waiting' | 'recording' | 'stopped'
+  phase: 'waiting' | 'recording' | 'stopped'
   jobId: string
   series: string
   notice: string
@@ -151,8 +150,6 @@ export const api = {
   render: (ids: string[], steps: Step[]) => call('POST', '/api/render', { ids, steps }),
   cancel: (id: string) => call('POST', `/api/jobs/${id}/cancel`),
   live: () => call<LiveState>('GET', '/api/live'),
-  liveStart: (series: string) => call<LiveState>('POST', '/api/live/start', { series }),
-  liveStop: () => call<LiveState>('POST', '/api/live/stop'),
   liveMark: (which: 'start' | 'end') => call<LiveState>('POST', '/api/live/mark', { which }),
   liveSeries: (name: string) => call<LiveState>('PUT', '/api/live/series', { name }),
   settings: () => call<Settings>('GET', '/api/settings'),

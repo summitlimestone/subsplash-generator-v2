@@ -20,8 +20,7 @@ import (
 type Phase string
 
 const (
-	PhaseIdle      Phase = "idle"      // not watching
-	PhaseWaiting   Phase = "waiting"   // watching for OBS to start recording
+	PhaseWaiting   Phase = "waiting"   // waiting for OBS to start recording
 	PhaseRecording Phase = "recording" // recording; marks can be set
 	PhaseStopped   Phase = "stopped"   // the recording finished; trim and stitch next
 )
@@ -37,7 +36,6 @@ type State struct {
 	PPConnected   bool    `json:"ppConnected"`
 	PPError       string  `json:"ppError"`
 	Slides        []Slide `json:"slides"` // most recent first
-	Watching      bool    `json:"watching"`
 	Phase         Phase   `json:"phase"`
 	JobID         string  `json:"jobId"`
 	Series        string  `json:"series"`
@@ -77,10 +75,30 @@ func (m *Manager) now() time.Time {
 func (m *Manager) Run(ctx context.Context) {
 	m.mu.Lock()
 	m.ctx = ctx
-	m.st.Phase = PhaseIdle
+	// Every recording becomes a live job, starting with the series the
+	// last one had: services usually run in series.
+	m.st.Phase, m.st.Series = PhaseWaiting, m.lastSeries()
 	m.mu.Unlock()
 	m.Reconfigure()
 	<-ctx.Done()
+}
+
+// lastSeries is the series of the newest live job, if any.
+func (m *Manager) lastSeries() string {
+	all, err := m.Store.Jobs()
+	if err != nil {
+		return ""
+	}
+	var newest *jobs.Job
+	for _, j := range all {
+		if j.Source == jobs.SourceLive && (newest == nil || j.Created.After(newest.Created)) {
+			newest = j
+		}
+	}
+	if newest == nil {
+		return ""
+	}
+	return newest.Series
 }
 
 // Reconfigure reconnects with the current settings, e.g. after they change.
@@ -225,7 +243,7 @@ func (m *Manager) follow(ctx context.Context, conn OBS) {
 }
 
 // reconcile catches up with OBS after (re)connecting: a recording may have
-// started before watching began, or stopped while disconnected.
+// started before the app connected, or stopped while disconnected.
 func (m *Manager) reconcile() {
 	m.mu.Lock()
 	conn := m.obs
@@ -254,7 +272,7 @@ func (m *Manager) reconcile() {
 func (m *Manager) recordingStarted() {
 	m.mu.Lock()
 	m.st.Recording = true
-	if !m.st.Watching || m.st.Phase == PhaseRecording {
+	if m.st.Phase == PhaseRecording {
 		m.mu.Unlock()
 		m.changed()
 		return
@@ -384,33 +402,6 @@ func (m *Manager) job() (*jobs.Job, error) {
 		return nil, ErrNotApplicable
 	}
 	return m.Store.Job(id)
-}
-
-// Start begins watching: the next recording (or the current one, if OBS
-// is already recording) becomes a live job.
-func (m *Manager) Start(series string) error {
-	m.mu.Lock()
-	if m.st.Watching {
-		m.mu.Unlock()
-		return fmt.Errorf("%w: already watching", ErrNotApplicable)
-	}
-	m.st.Watching, m.st.Phase, m.st.Series, m.st.JobID, m.st.Notice = true, PhaseWaiting, series, "", ""
-	m.mu.Unlock()
-	m.reconcile()
-	m.changed()
-	return nil
-}
-
-// Stop ends watching. The job keeps its marks.
-func (m *Manager) Stop() {
-	m.mu.Lock()
-	m.st.Watching = false
-	if m.st.Phase != PhaseStopped {
-		m.st.Phase, m.st.JobID = PhaseIdle, ""
-	}
-	m.st.Notice = ""
-	m.mu.Unlock()
-	m.changed()
 }
 
 // SetSeries sets the series for the session and its job.

@@ -172,7 +172,10 @@ func (r *rig) job(t *testing.T) *jobs.Job {
 
 func TestServiceWithSlideMarks(t *testing.T) {
 	r := setup(t, 0.6)
-	if err := r.m.Start("Fall"); err != nil {
+	if s := r.m.State(); s.Phase != PhaseWaiting {
+		t.Errorf("watching doesn't start by itself: %+v", s)
+	}
+	if err := r.m.SetSeries("Fall"); err != nil {
 		t.Fatal(err)
 	}
 	if err := r.m.Mark("start"); !errors.Is(err, ErrNotApplicable) {
@@ -215,19 +218,46 @@ func TestServiceWithSlideMarks(t *testing.T) {
 	if j := r.job(t); j.Recording != file || j.Status != jobs.StatusReady {
 		t.Errorf("finished job %+v", j)
 	}
-	r.m.Stop()
-	if s := r.m.State(); s.Watching || s.JobID == "" {
-		t.Errorf("after stop, the finished job stays shown: %+v", s)
+
+	// The next recording is a new job with the same series.
+	first := r.m.State().JobID
+	obs.set(true, 0)
+	obs.events <- RecordEvent{Recording: true}
+	r.waitFor(t, "second recording", func(s State) bool { return s.Phase == PhaseRecording && s.JobID != first })
+	if j := r.job(t); j.Recording != "" || j.Series != "Fall" {
+		t.Errorf("second job %+v", j)
+	}
+}
+
+func TestSeriesCarriesOverRestarts(t *testing.T) {
+	r := setup(t, 0)
+	_ = r.m.SetSeries("Advent")
+	obs := r.obs.current()
+	obs.set(true, 0)
+	obs.events <- RecordEvent{Recording: true}
+	r.waitFor(t, "recording", func(s State) bool { return s.Phase == PhaseRecording })
+
+	m := &Manager{Store: r.st, Dial: r.obs.dial}
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	go m.Run(ctx)
+	deadline := time.Now().Add(5 * time.Second)
+	for m.State().Series != "Advent" {
+		if time.Now().After(deadline) {
+			t.Fatalf("series after a restart: %+v", m.State())
+		}
+		time.Sleep(10 * time.Millisecond)
 	}
 }
 
 func TestManualMarksAndRecordingAlreadyRunning(t *testing.T) {
 	r := setup(t, 0)
+	// OBS is already recording when the app (re)connects: the job starts
+	// right away.
+	r.obs.state = func() (bool, time.Duration) { return true, 300 * time.Second }
+	r.obs.current().Close()
+	r.waitFor(t, "recording", func(s State) bool { return s.Phase == PhaseRecording && s.OBSConnected })
 	obs := r.obs.current()
-	obs.set(true, 300*time.Second)
-	// Watching starts mid-recording: the job starts right away.
-	_ = r.m.Start("")
-	r.waitFor(t, "recording", func(s State) bool { return s.Phase == PhaseRecording })
 	if err := r.m.Mark("end"); !errors.Is(err, ErrNotApplicable) {
 		t.Errorf("end before start: %v", err)
 	}
@@ -254,7 +284,7 @@ func TestOBSDropWhileRecording(t *testing.T) {
 	r := setup(t, 0)
 	obs := r.obs.current()
 	obs.set(true, 60*time.Second)
-	_ = r.m.Start("")
+	obs.events <- RecordEvent{Recording: true}
 	r.waitFor(t, "recording", func(s State) bool { return s.Phase == PhaseRecording })
 	_ = r.m.Mark("start")
 
@@ -292,7 +322,7 @@ func TestMarkCorrectsForASlowOBS(t *testing.T) {
 	r := setup(t, 0)
 	obs := r.obs.current()
 	obs.set(true, 100*time.Second)
-	_ = r.m.Start("")
+	obs.events <- RecordEvent{Recording: true}
 	r.waitFor(t, "recording", func(s State) bool { return s.Phase == PhaseRecording })
 	// The button was pressed 3 s ago; OBS answers now with 100 s.
 	if err := r.m.markAt("start", time.Now().Add(-3*time.Second)); err != nil {

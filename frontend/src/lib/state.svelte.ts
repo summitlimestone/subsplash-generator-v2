@@ -24,8 +24,14 @@ function upsert(job: Job) {
   if (!['trimming', 'stitching'].includes(job.status)) delete app.progress[job.id]
 }
 
+// The app version this page was loaded from. A page that stays open while
+// the app is updated (like the OBS dock) reloads to get the new UI.
+let loadedVersion: string | undefined
+
 export async function refresh() {
   const [jobs, series, info] = await Promise.all([api.jobs(), api.series(), api.info()])
+  if (loadedVersion !== undefined && info.version !== loadedVersion) location.reload()
+  loadedVersion = info.version
   app.jobs = jobs ?? []
   app.series = series ?? []
   app.info = info

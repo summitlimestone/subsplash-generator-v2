@@ -22,14 +22,6 @@ func (s *Server) LiveEvents() (onChange func(live.State), onJob func(*jobs.Job))
 
 func (s *Server) liveRoutes(api func(string, func(http.ResponseWriter, *http.Request) (any, error))) {
 	api("GET /api/live", func(http.ResponseWriter, *http.Request) (any, error) { return s.liveOrErr() })
-	api("POST /api/live/start", s.liveStart)
-	api("POST /api/live/stop", func(http.ResponseWriter, *http.Request) (any, error) {
-		if s.Live == nil {
-			return nil, errNoLive
-		}
-		s.Live.Stop()
-		return s.Live.State(), nil
-	})
 	api("POST /api/live/mark", s.liveMark)
 	api("PUT /api/live/series", s.liveSeries)
 	api("PUT /api/settings", s.putSettings)
@@ -59,22 +51,6 @@ func liveError(err error) error {
 		return httpError{http.StatusConflict, err.Error()}
 	}
 	return err
-}
-
-func (s *Server) liveStart(_ http.ResponseWriter, r *http.Request) (any, error) {
-	if s.Live == nil {
-		return nil, errNoLive
-	}
-	var req struct {
-		Series string `json:"series"`
-	}
-	if err := decode(r, &req); err != nil {
-		return nil, err
-	}
-	if err := s.Live.Start(req.Series); err != nil {
-		return nil, liveError(err)
-	}
-	return s.Live.State(), nil
 }
 
 func (s *Server) liveMark(_ http.ResponseWriter, r *http.Request) (any, error) {

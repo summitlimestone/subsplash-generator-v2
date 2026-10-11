@@ -374,6 +374,7 @@
       {end}
       {peaks}
       peaksPerSecond={app.info?.peaksPerSecond ?? 20}
+      fade={app.series.find((s) => s.name === series)?.transition_duration ?? 0}
       onseek={(t) => seek(t)}
       onstart={(t) => dragMark('start', t)}
       onend={(t) => dragMark('end', t)}

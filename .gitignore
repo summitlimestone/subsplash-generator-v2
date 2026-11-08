@@ -12,3 +12,8 @@
 # The WebView2 bootstrapper, downloaded when building the installer.
 /packaging/MicrosoftEdgeWebview2Setup.exe
 /ffmpeg-bin/
+
+
+# Added by cargo
+
+/tui/target

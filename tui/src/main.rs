@@ -50,6 +50,3 @@ fn main() -> std::io::Result<()> {
         },
     )
 }
-fn main() {
-    println!("Hello, world!");
-}
